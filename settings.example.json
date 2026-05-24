@@ -1,0 +1,16 @@
+{
+  "openai": {
+    "apiKey": "your-api-key-here",
+    "baseUrl": "https://api.openai.com",
+    "endpoint": "",
+    "model": "gpt-4o-mini"
+  },
+  "project": {
+    "rootDir": "./",
+    "maxIterations": 3,
+    "enableTools": false,
+    "permissionLevel": "standard",
+    "enableVerification": false,
+    "enableMultiAgent": false
+  }
+}

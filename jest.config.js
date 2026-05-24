@@ -1,0 +1,40 @@
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  roots: ['<rootDir>/test-ultrathink', '<rootDir>'],
+  testMatch: ['**/*.test.ts'],
+  testPathIgnorePatterns: ['node_modules'],
+  transformIgnorePatterns: [],
+  setupFilesAfterEnv: ['<rootDir>/test-ultrathink/setup.ts'],
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    'src/ultrathink/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/**/index.ts',
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 70,
+      lines: 70,
+      statements: 70,
+    },
+    './src/ultrathink/': {
+      branches: 85,
+      functions: 85,
+      lines: 85,
+      statements: 85,
+    },
+    './src/loop/event/': {
+      branches: 75,
+      functions: 75,
+      lines: 75,
+      statements: 75,
+    },
+  },
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  verbose: true,
+  testTimeout: 10000,
+};

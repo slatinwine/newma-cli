@@ -1,0 +1,127 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.game-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    text-align: center;
+}
+
+.game-header {
+    margin-bottom: 20px;
+}
+
+.game-header h1 {
+    color: #333;
+    font-size: 2.5em;
+    margin-bottom: 15px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.game-info {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    font-size: 1.2em;
+    color: #555;
+}
+
+.game-info > div {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: bold;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+#gameCanvas {
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 10px;
+    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5);
+    display: block;
+    margin: 0 auto;
+}
+
+.game-controls {
+    margin: 20px 0;
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.game-controls button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 1em;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    font-weight: bold;
+}
+
+.game-controls button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.game-controls button:active {
+    transform: translateY(0);
+}
+
+.game-controls button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.game-instructions {
+    background: #f0f0f0;
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 20px;
+}
+
+.game-instructions p {
+    color: #666;
+    margin: 5px 0;
+    font-size: 0.9em;
+}
+
+@media (max-width: 900px) {
+    .game-container {
+        padding: 20px;
+    }
+    
+    #gameCanvas {
+        width: 100%;
+        height: auto;
+    }
+    
+    .game-info {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .game-controls {
+        flex-wrap: wrap;
+    }
+}

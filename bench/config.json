@@ -1,0 +1,29 @@
+{
+  "iterations": {
+    "default": 100,
+    "fast": 1000,
+    "slow": 10,
+    "streaming": 100,
+    "parallel": 10,
+    "cache": {
+      "hit": 1000,
+      "miss": 1000,
+      "write": 100
+    },
+    "dependency": 100
+  },
+  "timeout": 30000,
+  "warmup": true,
+  "gc": true,
+  "output": {
+    "format": "table",
+    "json": true,
+    "saveResults": true
+  },
+  "thresholds": {
+    "parallelSpeedup": 2.0,
+    "cacheHitTime": 1.0,
+    "dependencyTime": 20.0,
+    "totalTime": 10000
+  }
+}

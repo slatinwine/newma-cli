@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newma Web</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .input-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        select {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+        }
+
+        button {
+            padding: 12px 30px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .output-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .output-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #e0e0e0;
+            background: #f9f9f9;
+        }
+
+        .output-item.success {
+            border-left-color: #4caf50;
+            background: #f1f8f4;
+        }
+
+        .output-item.error {
+            border-left-color: #f44336;
+            background: #fef5f5;
+        }
+
+        .output-item.warning {
+            border-left-color: #ff9800;
+            background: #fffaf0;
+        }
+
+        .output-item.info {
+            border-left-color: #2196f3;
+            background: #f0f7ff;
+        }
+
+        .output-item.code {
+            border-left-color: #9c27b0;
+            background: #f8f4fc;
+        }
+
+        .output-content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+        }
+
+        .timestamp {
+            color: #999;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        /* HTML Preview */
+        .html-preview {
+            margin-top: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .html-preview-header {
+            background: #f5f5f5;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .html-preview-title {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .html-preview-actions button {
+            padding: 6px 12px;
+            font-size: 14px;
+            background: #667eea;
+            margin-left: 5px;
+        }
+
+        .html-preview-frame {
+            width: 100%;
+            height: 400px;
+            border: none;
+            background: white;
+        }
+
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: white;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4caf50;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .clear-btn {
+            background: #f44336;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        .clear-btn:hover {
+            background: #d32f2f;
+        }
+
+        /* Image Upload Styles */
+        .image-upload-section {
+            margin-top: 15px;
+            padding: 15px;
+            border: 2px dashed #e0e0e0;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+
+        .image-upload-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .image-upload-title {
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .upload-btn {
+            background: #4caf50;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        .upload-btn:hover {
+            background: #45a049;
+        }
+
+        #imageInput {
+            display: none;
+        }
+
+        .image-preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .image-preview {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #e0e0e0;
+            background: white;
+        }
+
+        .image-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .image-preview-remove {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(244, 67, 54, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .image-preview-remove:hover {
+            background: rgba(211, 47, 47, 1);
+        }
+
+        .image-info {
+            font-size: 11px;
+            color: #666;
+            padding: 5px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Newma Web Interface</h1>
+            <p>AI-Powered Code Generation Assistant</p>
+        </div>
+
+        <div class="input-section">
+            <div class="input-group">
+                <input type="text" id="requirement" placeholder="请输入任务要求..." />
+                <select id="mode">
+                    <option value="chat">Chat</option>
+                    <option value="plan">Plan</option>
+                    <option value="think">Think</option>
+                </select>
+                <button id="sendBtn" onclick="sendRequest()">发送</button>
+            </div>
+
+            <div class="image-upload-section">
+                <div class="image-upload-header">
+                    <span class="image-upload-title">📷 图像上传（支持视觉识别）</span>
+                    <button class="upload-btn" onclick="document.getElementById('imageInput').click()">选择图片</button>
+                    <input type="file" id="imageInput" accept="image/*" multiple onchange="handleImageUpload(event)" style="display: none;">
+                </div>
+                <div id="imagePreviewContainer" class="image-preview-container">
+                    <div class="empty-state">暂无图片，点击上方按钮上传</div>
+                </div>
+            </div>
+
+            <div id="loading" style="display: none; text-align: center; padding: 10px;">
+                <div class="loading"></div>
+                <p style="margin-top: 10px; color: #666;">AI 正在思考...</p>
+            </div>
+        </div>
+
+        <div class="output-section">
+            <div id="output"></div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>服务器运行中</span>
+            </div>
+            <button class="clear-btn" onclick="clearOutput()">清空输出</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let autoScroll = true;
+        let previewId = 0;
+        let uploadedImages = []; // 存储已上传的图像数据
+
+        // 检测HTML代码块
+        function detectHTMLBlock(content) {
+            const htmlRegex = /\`\`\`html\n([\s\S]*?)\`\`\`/g;
+            const matches = [];
+            let match;
+
+            while ((match = htmlRegex.exec(content)) !== null) {
+                matches.push({
+                    full: match[0],
+                    code: match[1]
+                });
+            }
+
+            return matches;
+        }
+
+        // 创建HTML预览
+        function createHTMLPreview(htmlCode) {
+            const id = 'preview-' + (++previewId);
+            const preview = document.createElement('div');
+            preview.className = 'html-preview';
+            preview.innerHTML = '<div class="html-preview-header"><span class="html-preview-title">🌐 HTML 实时预览</span><div class="html-preview-actions"><button onclick="openFullscreen(\'' + id + '\')">全屏</button><button onclick="copyHTML(\'' + id + '\')">复制</button></div></div><iframe id="' + id + '" class="html-preview-frame" sandbox="allow-scripts allow-same-origin"></iframe>';
+
+            // 延迟加载iframe内容
+            setTimeout(function() {
+                const iframe = preview.querySelector('#' + id);
+                if (iframe) {
+                    const doc = iframe.contentDocument || iframe.contentWindow.document;
+                    doc.open();
+                    doc.write(htmlCode);
+                    doc.close();
+                }
+            }, 100);
+
+            return preview;
+        }
+
+        // 打开全屏
+        function openFullscreen(iframeId) {
+            const iframe = document.getElementById(iframeId);
+            if (iframe.requestFullscreen) {
+                iframe.requestFullscreen();
+            } else if (iframe.webkitRequestFullscreen) {
+                iframe.webkitRequestFullscreen();
+            }
+        }
+
+        // 复制HTML代码
+        function copyHTML(iframeId) {
+            const iframe = document.getElementById(iframeId);
+            const htmlContent = iframe.contentDocument.documentElement.outerHTML;
+            navigator.clipboard.writeText(htmlContent).then(function() {
+                alert('HTML 代码已复制到剪贴板！');
+            });
+        }
+
+        // 渲染输出
+        function renderOutput(data) {
+            const output = document.getElementById('output');
+
+            try {
+                const item = JSON.parse(data);
+                const div = document.createElement('div');
+
+                // 设置样式类
+                let styleClass = '';
+                if (item.style === 'success') styleClass = 'success';
+                else if (item.style === 'error') styleClass = 'error';
+                else if (item.style === 'warning') styleClass = 'warning';
+                else if (item.style === 'info') styleClass = 'info';
+                else if (item.style === 'code') styleClass = 'code';
+
+                div.className = 'output-item ' + styleClass;
+
+                // 时间戳
+                if (item.timestamp) {
+                    const timestamp = document.createElement('div');
+                    timestamp.className = 'timestamp';
+                    timestamp.textContent = new Date(item.timestamp).toLocaleString('zh-CN');
+                    div.appendChild(timestamp);
+                }
+
+                // 内容
+                const content = document.createElement('div');
+                content.className = 'output-content';
+                content.textContent = item.content;
+                div.appendChild(content);
+
+                // 检测HTML代码块
+                const htmlBlocks = detectHTMLBlock(item.content);
+                if (htmlBlocks.length > 0) {
+                    htmlBlocks.forEach(function(block) {
+                        const preview = createHTMLPreview(block.code);
+                        div.appendChild(preview);
+                    });
+                }
+
+                output.appendChild(div);
+
+                // 自动滚动到底部
+                if (autoScroll) {
+                    output.scrollTop = output.scrollHeight;
+                }
+            } catch (e) {
+                console.error('Failed to parse output:', e);
+            }
+        }
+
+        // 处理图像上传
+        function handleImageUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            Array.from(files).forEach(file => {
+                if (!file.type.startsWith('image/')) {
+                    alert('请选择图片文件');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imageData = {
+                        data: e.target.result, // data URL 格式
+                        type: file.type.split('/')[1],
+                        name: file.name
+                    };
+
+                    uploadedImages.push(imageData);
+                    renderImagePreviews();
+                };
+                reader.readAsDataURL(file);
+            });
+
+            // 清空 input 以便重复选择同一文件
+            event.target.value = '';
+        }
+
+        // 渲染图像预览
+        function renderImagePreviews() {
+            const container = document.getElementById('imagePreviewContainer');
+
+            if (uploadedImages.length === 0) {
+                container.innerHTML = '<div class="empty-state">暂无图片，点击上方按钮上传</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            uploadedImages.forEach((image, index) => {
+                const preview = document.createElement('div');
+                preview.className = 'image-preview';
+                preview.innerHTML = `
+                    <img src="${image.data}" alt="上传的图片 ${index + 1}">
+                    <button class="image-preview-remove" onclick="removeImage(${index})" title="删除">×</button>
+                    <div class="image-info">${image.name}</div>
+                `;
+                container.appendChild(preview);
+            });
+        }
+
+        // 删除图像
+        function removeImage(index) {
+            uploadedImages.splice(index, 1);
+            renderImagePreviews();
+        }
+
+        // 发送请求
+        async function sendRequest() {
+            const requirement = document.getElementById('requirement').value.trim();
+            const mode = document.getElementById('mode').value;
+
+            if (!requirement && uploadedImages.length === 0) {
+                alert('请输入任务要求或上传图片');
+                return;
+            }
+
+            const sendBtn = document.getElementById('sendBtn');
+            const loading = document.getElementById('loading');
+
+            sendBtn.disabled = true;
+            loading.style.display = 'block';
+
+            try {
+                // 构建请求体
+                const requestBody = {
+                    requirement: requirement || '请分析上传的图片',
+                    mode: mode
+                };
+
+                // 如果有图片，添加到请求中
+                if (uploadedImages.length > 0) {
+                    requestBody.images = uploadedImages.map(img => ({
+                        data: img.data,
+                        type: img.type
+                    }));
+                }
+
+                const response = await fetch(API_BASE + '/api/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody),
+                });
+
+                if (!response.ok) {
+                    throw new Error('请求失败');
+                }
+
+                // 清空已上传的图片
+                uploadedImages = [];
+                renderImagePreviews();
+                document.getElementById('requirement').value = '';
+
+                // 开始轮询输出
+                pollOutput();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('请求失败: ' + error.message);
+                sendBtn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+
+        // 轮询输出
+        async function pollOutput() {
+            let lastCount = 0;
+
+            var poll = setInterval(async function() {
+                try {
+                    const response = await fetch(API_BASE + '/api/status');
+                    const data = await response.json();
+
+                    if (data.outputBuffer && data.outputBuffer.length > lastCount) {
+                        const newItems = data.outputBuffer.slice(lastCount);
+                        newItems.forEach(renderOutput);
+                        lastCount = data.outputBuffer.length;
+                    }
+
+                    // 检查是否完成（简单判断：如果一段时间没有新输出）
+                    var now = Date.now();
+                    var lastTimestamp = data.outputBuffer.length > 0
+                        ? JSON.parse(data.outputBuffer[data.outputBuffer.length - 1]).timestamp
+                        : 0;
+
+                    if (now - new Date(lastTimestamp).getTime() > 3000 && lastCount > 0) {
+                        clearInterval(poll);
+                        document.getElementById('sendBtn').disabled = false;
+                        document.getElementById('loading').style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Poll error:', error);
+                }
+            }, 500);
+
+            // 5分钟后停止轮询
+            setTimeout(function() {
+                clearInterval(poll);
+                document.getElementById('sendBtn').disabled = false;
+                document.getElementById('loading').style.display = 'none';
+            }, 300000);
+        }
+
+        // 清空输出
+        async function clearOutput() {
+            if (!confirm('确定要清空输出吗？')) return;
+
+            await fetch(API_BASE + '/api/clear', { method: 'POST' });
+            document.getElementById('output').innerHTML = '';
+        }
+
+        // 回车发送
+        document.getElementById('requirement').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendRequest();
+            }
+        });
+
+        // 页面加载时显示欢迎信息
+        window.onload = function() {
+            const output = document.getElementById('output');
+            const welcome = document.createElement('div');
+            welcome.className = 'output-item info';
+            welcome.innerHTML = '<div class="timestamp">' + new Date().toLocaleString('zh-CN') + '</div><div class="output-content">👋 欢迎使用 Newma Web！请在上方输入任务要求开始使用。</div>';
+            output.appendChild(welcome);
+        };
+    </script>
+</body>
+</html>

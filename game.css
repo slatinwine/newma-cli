@@ -1,0 +1,81 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Microsoft YaHei', Arial, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+}
+
+.game-container {
+    text-align: center;
+    position: relative;
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px 10px 0 0;
+    margin-bottom: 0;
+}
+
+.score, .lives {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+#score, #lives {
+    color: #00ff88;
+    font-size: 24px;
+}
+
+#gameCanvas {
+    background: linear-gradient(180deg, #0f0f23 0%, #1a1a3e 100%);
+    border: 3px solid #00ff88;
+    border-radius: 0 0 10px 10px;
+    display: block;
+    box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+}
+
+.message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 40px 60px;
+    border-radius: 20px;
+    border: 2px solid #00ff88;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+#messageText {
+    font-size: 32px;
+    color: #00ff88;
+    text-shadow: 0 0 10px #00ff88;
+}
+
+#messageSubtext {
+    font-size: 16px;
+    color: #aaa;
+}
+
+.controls-info {
+    margin-top: 15px;
+    color: #888;
+    font-size: 14px;
+}

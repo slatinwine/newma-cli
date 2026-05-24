@@ -1,0 +1,18 @@
+{
+  "openai": {
+    "apiKey": "your-api-key-here",
+    "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+    "model": "glm-4.7"
+  },
+  "project": {
+    "enableTools": true,
+    "enableVerification": false,
+    "permissionLevel": "safe"
+  },
+  "hooks": {
+    "enabled": true,
+    "directory": ".kode/hooks",
+    "timeout": 5000,
+    "verbose": true
+  }
+}

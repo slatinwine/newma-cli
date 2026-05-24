@@ -1,0 +1,13 @@
+{
+  "name": "hello-plugin",
+  "version": "1.0.0",
+  "description": "A simple greeting plugin demonstrating Bun plugin development",
+  "main": "plugin.ts",
+  "keywords": ["kode-plugin", "greeting", "example"],
+  "author": "Kode Team",
+  "license": "MIT",
+  "kode": {
+    "id": "hello-plugin",
+    "entryPoint": "plugin.ts"
+  }
+}

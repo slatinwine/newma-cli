@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "enabled": true,
+    "directories": [".kode/plugins"],
+    "autoLoad": ["search-plugin", "command-plugin"],
+    "timeout": 30000,
+    "validateDependencies": true,
+    "verbose": true
+  }
+}

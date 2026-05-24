@@ -1,0 +1,19 @@
+{
+  "comment": "Example configuration with intent recognition enabled",
+  "openai": {
+    "apiKey": "your-api-key-here",
+    "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+    "model": "glm-4.7"
+  },
+  "project": {
+    "rootDir": ".",
+    "autoAlgorithm": true
+  },
+  "intentRecognition": {
+    "enabled": true,
+    "autoRedirect": true,
+    "confidenceThreshold": 0.6,
+    "autoRedirectQuestions": true,
+    "comment": "When enabled, automatically detects user intent and redirects to appropriate mode"
+  }
+}

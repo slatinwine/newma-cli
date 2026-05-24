@@ -1,0 +1,16 @@
+{
+  "name": "empty-plugin",
+  "version": "1.0.0",
+  "description": "No requirements provided",
+  "main": "plugin.ts",
+  "keywords": [
+    "kode-plugin",
+    "empty-plugin"
+  ],
+  "author": "Kode User",
+  "license": "MIT",
+  "kode": {
+    "id": "empty-plugin",
+    "entryPoint": "plugin.ts"
+  }
+}

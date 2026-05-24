@@ -1,0 +1,66 @@
+{
+  "id": "calculator",
+  "name": "Calculator",
+  "description": "Mathematical calculations without compilation",
+  "version": "1.0.0",
+  "type": "typescript",
+  "entryPoint": "calculator.ts",
+  "dependencies": [],
+  "tools": [
+    {
+      "name": "add",
+      "description": "Add two numbers",
+      "handler": "const a = params.a || 0; const b = params.b || 0; const result = a + b; return { success: true, output: result.toString(), result, operation: 'add' };",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": { "type": "number", "description": "First number" },
+          "b": { "type": "number", "description": "Second number" }
+        },
+        "required": ["a", "b"]
+      },
+      "permissions": ["SAFE"],
+      "category": "UTILITY"
+    },
+    {
+      "name": "multiply",
+      "description": "Multiply two numbers",
+      "handler": "const a = params.a || 0; const b = params.b || 0; const result = a * b; return { success: true, output: result.toString(), result, operation: 'multiply' };",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": { "type": "number", "description": "First number" },
+          "b": { "type": "number", "description": "Second number" }
+        },
+        "required": ["a", "b"]
+      },
+      "permissions": ["SAFE"],
+      "category": "UTILITY"
+    },
+    {
+      "name": "stats",
+      "description": "Calculate basic statistics on an array of numbers",
+      "handler": "const numbers = params.numbers || []; if (numbers.length === 0) { return { success: false, error: 'Array is empty' }; } const sum = numbers.reduce((a, b) => a + b, 0); const avg = sum / numbers.length; const min = Math.min(...numbers); const max = Math.max(...numbers); return { success: true, output: JSON.stringify({ sum, avg, min, max, count: numbers.length }), stats: { sum, avg, min, max, count: numbers.length } };",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "numbers": {
+            "type": "array",
+            "description": "Array of numbers to analyze",
+            "items": { "type": "number" }
+          }
+        },
+        "required": ["numbers"]
+      },
+      "permissions": ["SAFE"],
+      "category": "ANALYSIS"
+    }
+  ],
+  "metadata": {
+    "author": "Kode Team",
+    "license": "MIT",
+    "runtime": {
+      "nodeVersion": ">=18.0.0"
+    }
+  }
+}

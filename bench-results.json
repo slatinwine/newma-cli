@@ -1,0 +1,166 @@
+{
+  "timestamp": "2026-01-29T11:33:50.999Z",
+  "suites": [
+    {
+      "name": "流式响应",
+      "benchmarks": [
+        {
+          "name": "增量处理",
+          "duration": 0.6533329999999751,
+          "ops": 100,
+          "opsPerSec": 153061.3025823031,
+          "memory": {
+            "rss": 229376,
+            "heapTotal": 262144,
+            "heapUsed": 231544,
+            "external": 40,
+            "arrayBuffers": 0
+          },
+          "success": true
+        },
+        {
+          "name": "批量处理",
+          "duration": 0.05462499999998727,
+          "ops": 100,
+          "opsPerSec": 1830663.6155610674,
+          "memory": {
+            "rss": 49152,
+            "heapTotal": 0,
+            "heapUsed": 39680,
+            "external": 0,
+            "arrayBuffers": 0
+          },
+          "success": true
+        }
+      ],
+      "totalDuration": 0.7079579999999623,
+      "totalOps": 200
+    },
+    {
+      "name": "并发执行",
+      "benchmarks": [
+        {
+          "name": "串行执行",
+          "duration": 2549.722292,
+          "ops": 10,
+          "opsPerSec": 3.9219957527829465,
+          "memory": {
+            "rss": 327680,
+            "heapTotal": 262144,
+            "heapUsed": 140584,
+            "external": 0,
+            "arrayBuffers": 0
+          },
+          "success": true
+        },
+        {
+          "name": "并行执行",
+          "duration": 511.0301250000002,
+          "ops": 10,
+          "opsPerSec": 19.568318012563342,
+          "memory": {
+            "rss": 65536,
+            "heapTotal": 0,
+            "heapUsed": 63048,
+            "external": 0,
+            "arrayBuffers": 0
+          },
+          "success": true
+        }
+      ],
+      "totalDuration": 3060.752417,
+      "totalOps": 20
+    },
+    {
+      "name": "缓存系统",
+      "benchmarks": [
+        {
+          "name": "缓存命中",
+          "duration": 1.2080839999998716,
+          "ops": 1000,
+          "opsPerSec": 827757.010274208,
+          "memory": {
+            "rss": 1736704,
+            "heapTotal": 1835008,
+            "heapUsed": 1704352,
+            "external": 0,
+            "arrayBuffers": 0
+          },
+          "success": true
+        },
+        {
+          "name": "缓存未命中",
+          "duration": 0.7229580000002898,
+          "ops": 1000,
+          "opsPerSec": 1383206.2166814657,
+          "memory": {
+            "rss": 1277952,
+            "heapTotal": 1310720,
+            "heapUsed": 1247184,
+            "external": 0,
+            "arrayBuffers": 0
+          },
+          "success": true
+        },
+        {
+          "name": "缓存写入",
+          "duration": 0.13837499999999636,
+          "ops": 100,
+          "opsPerSec": 722673.8934056198,
+          "memory": {
+            "rss": 196608,
+            "heapTotal": 0,
+            "heapUsed": 185696,
+            "external": 0,
+            "arrayBuffers": 0
+          },
+          "success": true
+        }
+      ],
+      "totalDuration": 2.0694170000001577,
+      "totalOps": 2100
+    },
+    {
+      "name": "依赖分析",
+      "benchmarks": [
+        {
+          "name": "构建依赖图",
+          "duration": 1.738083000000188,
+          "ops": 100,
+          "opsPerSec": 57534.65168233576,
+          "memory": {
+            "rss": 2195456,
+            "heapTotal": 2097152,
+            "heapUsed": 2136192,
+            "external": 0,
+            "arrayBuffers": 0
+          },
+          "success": true
+        },
+        {
+          "name": "拓扑排序",
+          "duration": 2.019166999999925,
+          "ops": 100,
+          "opsPerSec": 49525.373582276115,
+          "memory": {
+            "rss": 3473408,
+            "heapTotal": 3407872,
+            "heapUsed": 3402672,
+            "external": 0,
+            "arrayBuffers": 0
+          },
+          "success": true
+        }
+      ],
+      "totalDuration": 3.7572500000001128,
+      "totalOps": 200
+    }
+  ],
+  "summary": {
+    "totalTests": 9,
+    "passedTests": 9,
+    "failedTests": 0,
+    "totalDuration": 3067.2870420000004,
+    "totalOps": 2520
+  }
+}

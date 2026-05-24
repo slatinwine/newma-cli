@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超级马里奥</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #87CEEB;
+            font-family: 'Arial', sans-serif;
+        }
+        #game {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 60%, #228B22 60%, #228B22 100%);
+            overflow: hidden;
+            border: 4px solid #333;
+        }
+        #mario {
+            position: absolute;
+            width: 40px;
+            height: 50px;
+            background: #FF0000;
+            border-radius: 5px;
+            bottom: 100px;
+            left: 50px;
+            transition: left 0.1s, bottom 0.1s;
+        }
+        #mario::before {
+            content: '';
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            width: 10px;
+            height: 10px;
+            background: #FFD700;
+            border-radius: 50%;
+        }
+        .platform {
+            position: absolute;
+            background: #8B4513;
+            border: 2px solid #654321;
+        }
+        .coin {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #FFD700;
+            border-radius: 50%;
+            border: 2px solid #DAA520;
+            animation: spin 1s infinite linear;
+        }
+        @keyframes spin {
+            0% { transform: rotateY(0deg); }
+            100% { transform: rotateY(360deg); }
+        }
+        .enemy {
+            position: absolute;
+            width: 35px;
+            height: 35px;
+            background: #8B0000;
+            border-radius: 50%;
+        }
+        .enemy::before {
+            content: '👾';
+            font-size: 25px;
+            position: absolute;
+            top: 2px;
+            left: 5px;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            color: #fff;
+            text-shadow: 2px 2px #000;
+        }
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: #fff;
+            text-shadow: 3px 3px #000;
+            display: none;
+        }
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            text-shadow: 1px 1px #000;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game">
+        <div id="score">分数: 0</div>
+        <div id="mario"></div>
+        <div id="game-over">游戏结束!</div>
+        <div id="controls">← → 移动 | 空格 跳跃</div>
+    </div>
+    
+    <script>
+        const game = document.getElementById('game');
+        const mario = document.getElementById('mario');
+        const scoreEl = document.getElementById('score');
+        const gameOverEl = document.getElementById('game-over');
+        
+        let score = 0;
+        let marioX = 50;
+        let marioY = 100;
+        let marioVX = 0;
+        let marioVY = 0;
+        let isJumping = false;
+        let isGameOver = false;
+        
+        const GRAVITY = 0.5;
+        const JUMP_FORCE = -12;
+        const MOVE_SPEED = 5;
+        const FRICTION = 0.8;
+        
+        // 平台
+        const platforms = [
+            {x: 0, y: 500, width: 800, height: 100},
+            {x: 150, y: 400, width: 150, height: 20},
+            {x: 350, y: 320, width: 150, height: 20},
+            {x: 550, y: 250, width: 150, height: 20},
+            {x: 100, y: 280, width: 100, height: 20},
+            {x: 300, y: 200, width: 100, height: 20},
+            {x: 500, y: 150, width: 200, height: 20},
+        ];
+        
+        // 金币
+        const coins = [
+            {x: 200, y: 370},
+            {x: 400, y: 290},
+            {x: 600, y: 220},
+            {x: 150, y: 250},
+            {x: 350, y: 170},
+            {x: 550, y: 120},
+        ];
+        
+        // 敌人
+        const enemies = [
+            {x: 250, y: 465, vx: -2},
+            {x: 450, y: 465, vx: 2},
+            {x: 650, y: 465, vx: -2},
+        ];
+        
+        // 创建游戏元素
+        function createElements() {
+            // 平台
+            platforms.forEach(p => {
+                const platform = document.createElement('div');
+                platform.className = 'platform';
+                platform.style.left = p.x + 'px';
+                platform.style.top = p.y + 'px';
+                platform.style.width = p.width + 'px';
+                platform.style.height = p.height + 'px';
+                game.appendChild(platform);
+            });
+            
+            // 金币
+            coins.forEach(c => {
+                const coin = document.createElement('div');
+                coin.className = 'coin';
+                coin.id = 'coin-' + c.x;
+                coin.style.left = c.x + 'px';
+                coin.style.top = c.y + 'px';
+                game.appendChild(coin);
+            });
+            
+            // 敌人
+            enemies.forEach(e => {
+                const enemy = document.createElement('div');
+                enemy.className = 'enemy';
+                enemy.id = 'enemy-' + e.x;
+                enemy.style.left = e.x + 'px';
+                enemy.style.top = e.y + 'px';
+                game.appendChild(enemy);
+            });
+        }
+        
+        // 键盘控制
+        const keys = {};
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if (e.code === 'Space' && !isJumping && !isGameOver) {
+                marioVY = JUMP_FORCE;
+                isJumping = true;
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+        
+        // 碰撞检测
+        function checkCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+        
+        // 游戏循环
+        function gameLoop() {
+            if (isGameOver) return;
+            
+            // 水平移动
+            if (keys['ArrowLeft']) {
+                marioVX = -MOVE_SPEED;
+            } else if (keys['ArrowRight']) {
+                marioVX = MOVE_SPEED;
+            } else {
+                marioVX *= FRICTION;
+            }
+            
+            // 应用重力
+            marioVY += GRAVITY;
+            
+            // 更新位置
+            marioX += marioVX;
+            marioY += marioVY;
+            
+            // 边界检测
+            if (marioX < 0) marioX = 0;
+            if (marioX > 760) marioX = 760;
+            
+            // 平台碰撞检测
+            let onPlatform = false;
+            platforms.forEach(p => {
+                if (checkCollision({x: marioX, y: marioY, width: 40, height: 50}, p)) {
+                    // 从上方落下
+                    if (marioVY > 0 && marioY + 50 <= p.y + 10) {
+                        marioY = p.y - 50;
+                        marioVY = 0;
+                        isJumping = false;
+                        onPlatform = true;
+                    }
+                }
+            });
+            
+            // 掉落检测
+            if (marioY > 600) {
+                gameOver();
+                return;
+            }
+            
+            // 金币收集
+            coins.forEach(c => {
+                const coin = document.getElementById('coin-' + c.x);
+                if (coin && checkCollision({x: marioX, y: marioY, width: 40, height: 50}, {x: c.x, y: c.y, width: 20, height: 20})) {
+                    coin.remove();
+                    score += 100;
+                    scoreEl.textContent = '分数: ' + score;
+                }
+            });
+            
+            // 敌人碰撞
+            enemies.forEach(e => {
+                const enemy = document.getElementById('enemy-' + e.x);
+                if (enemy && checkCollision({x: marioX, y: marioY, width: 40, height: 50}, {x: e.x, y: e.y, width: 35, height: 35})) {
+                    // 从上方踩到敌人
+                    if (marioVY > 0 && marioY + 50 <= e.y + 20) {
+                        enemy.remove();
+                        score += 200;
+                        scoreEl.textContent = '分数: ' + score;
+                        e.x = -100; // 移除敌人
+                    } else {
+                        gameOver();
+                    }
+                }
+            });
+            
+            // 更新敌人位置
+            enemies.forEach(e => {
+                if (e.x > -50 && e.x < 850) {
+                    e.x += e.vx;
+                    const enemy = document.getElementById('enemy-' + e.x);
+                    if (enemy) {
+                        enemy.style.left = e.x + 'px';
+                    }
+                }
+            });
+            
+            // 更新马里奥位置
+            mario.style.left = marioX + 'px';
+            mario.style.bottom = marioY + 'px';
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function gameOver() {
+            isGameOver = true;
+            gameOverEl.style.display = 'block';
+        }
+        
+        // 初始化游戏
+        createElements();
+        gameLoop();
+    </script>
+</body>
+</html>

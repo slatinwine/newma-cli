@@ -1,0 +1,27 @@
+#!/bin/bash
+
+echo "=============================================="
+echo "TUI Redesign Demo - Claude Style"
+echo "=============================================="
+echo ""
+echo "🎨 改进内容:"
+echo "  • 柔和的暗色主题 (#0d0d0d 背景)"
+echo "  • 优雅的灰色系配色"
+echo "  • 简洁的头部设计"
+echo "  • 细边框 (#333333)"
+echo "  • Subtle 的状态颜色"
+echo "  • 现代进度条 (█ ▓ ▒ ░)"
+echo ""
+echo "📊 配色方案:"
+echo "  • 主色调: 柔和白 (#e0e0e0)"
+echo "  • 成功: 柔和绿 (#7ec850)"
+echo "  • 错误: 柔和红 (#ff6b6b)"
+echo "  • 警告: 柔和橙 (#ffa500)"
+echo "  • 信息: 柔和蓝 (#64b5f6)"
+echo ""
+echo "=============================================="
+echo ""
+echo "启动 TUI..."
+echo ""
+
+node dist/cli.js --tui -i

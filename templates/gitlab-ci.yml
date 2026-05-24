@@ -1,0 +1,100 @@
+# GitLab CI/CD configuration for Newma AI Code Review
+# This template enables automatic code review on merge requests
+
+stages:
+  - review
+
+# Variables (set these in GitLab CI/CD settings)
+# GITLAB_URL: Your GitLab server URL (e.g., https://gitlab.com)
+# GITLAB_TOKEN: Personal access token with api scope
+# OPENAI_API_KEY: OpenAI API key for AI code review
+# Optional: NEWSMA_AUTO_FIX: Set to 'true' to enable auto-fix (experimental)
+
+# Code review job - runs on merge requests
+code_review:
+  stage: review
+  image: node:20
+  script:
+    # Install dependencies
+    - npm ci --prefer-offline --no-audit
+
+    # Run Newma GitLab review
+    - npx newma-cli gitlab review
+  rules:
+    # Only run on merge requests
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  # Allow this job to fail without blocking the pipeline
+  allow_failure: true
+  # Don't need artifacts for code review
+  artifacts:
+    when: always
+    paths:
+      - newma-review-output.txt
+    expire_in: 1 week
+  tags:
+    - docker
+
+# Optional: Manual review job
+code_review_manual:
+  stage: review
+  image: node:20
+  script:
+    - npm ci --prefer-offline --no-audit
+    - npx newma-cli gitlab review --iid $CI_MERGE_REQUEST_IID --project-id $CI_PROJECT_ID
+  rules:
+    # Allow manual trigger on any branch
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+  tags:
+    - docker
+
+# Advanced configuration examples:
+
+# 1. Limit review to specific file types
+# code_review_filtered:
+#   stage: review
+#   image: node:20
+#   script:
+#     - npm ci --prefer-offline --no-audit
+#     - |
+#       if git diff --name-only $CI_MERGE_REQUEST_DIFF_BASE_SHA...$CI_COMMIT_SHA | grep -E '\.(ts|js|py|java)$'; then
+#         npx newma-cli gitlab review
+#       else
+#         echo "No relevant files changed, skipping review"
+#       fi
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+#   tags:
+#     - docker
+
+# 2. Review with custom configuration
+# code_review_custom:
+#   stage: review
+#   image: node:20
+#   script:
+#     - npm ci --prefer-offline --no-audit
+#     - |
+#       export NEWSMA_MAX_FILES=50
+#       export NEWSMA_MAX_LINES=1000
+#       export NEWSMA_AUTO_FIX=false
+#       npx newma-cli gitlab review
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+#   tags:
+#     - docker
+
+# 3. Parallel review (divide large MRs into chunks)
+# code_review_parallel:
+#   stage: review
+#   image: node:20
+#   script:
+#     - npm ci --prefer-offline --no-audit
+#     - npx newma-cli gitlab review
+#   parallel:
+#     matrix:
+#       - CHUNK: [1, 2, 3, 4]
+#   rules:
+#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+#   tags:
+#     - docker

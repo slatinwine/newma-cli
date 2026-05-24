@@ -1,0 +1,33 @@
+{
+  "openai": {
+    "apiKey": "your-api-key-here",
+    "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+    "model": "glm-4.7"
+  },
+  "project": {
+    "enableTools": true,
+    "permissionLevel": "safe"
+  },
+  "hooks": {
+    "enabled": false
+  },
+  "plugins": {
+    "enabled": true,
+    "directories": [".kode/plugins"],
+    "autoLoad": ["search-plugin", "command-plugin"],
+    "timeout": 30000,
+    "validateDependencies": true,
+    "verbose": true
+  },
+  "pluginConfigs": {
+    "search-plugin": {
+      "searchEngine": "bing",
+      "maxResults": 10,
+      "timeout": 10000
+    },
+    "command-plugin": {
+      "allowSudo": false,
+      "blockedCommands": ["rm -rf /", "mkfs"]
+    }
+  }
+}

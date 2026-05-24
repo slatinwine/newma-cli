@@ -1,0 +1,17 @@
+{
+  "name": "calculator-plugin",
+  "version": "1.0.0",
+  "description": "A calculator plugin with basic math operations",
+  "main": "plugin.ts",
+  "keywords": [
+    "kode-plugin",
+    "calculator",
+    "math"
+  ],
+  "author": "Kode User",
+  "license": "MIT",
+  "kode": {
+    "id": "calculator-plugin",
+    "entryPoint": "plugin.ts"
+  }
+}

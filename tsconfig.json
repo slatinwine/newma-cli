@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "!src/skills/**/*.ts",
+    "!src/skills-creator/**/*.ts",
+    "!src/loop/frontends/tui-frontend.ts",
+    "!src/repl-tui.ts",
+    "!src/ui/**/*.ts"
+  ],
+  "exclude": [
+    "src/ui",
+    "src/skills",
+    "src/skills-creator"
+  ]
+}
