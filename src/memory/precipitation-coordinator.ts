@@ -219,18 +219,19 @@ export class PrecipitationCoordinator {
     for (const suggestion of suggestions) {
       const id = this.extractDraftId(suggestion);
 
-      // 自动批准
-      if (this.config.autoApproveBelow && suggestion.confidence >= this.config.autoApproveBelow) {
+      const action = decideAutoAction(suggestion.confidence, {
+        autoApproveBelow: this.config.autoApproveBelow,
+        autoRejectAbove: this.config.autoRejectAbove,
+      });
+
+      if (action === 'approve') {
         try {
           await this.draftManager.approve(id, 'Auto-approved by system');
           approved++;
         } catch (error) {
           console.warn(`Failed to auto-approve ${id}`);
         }
-      }
-
-      // 自动拒绝
-      if (this.config.autoRejectAbove && suggestion.confidence < this.config.autoRejectAbove) {
+      } else if (action === 'reject') {
         try {
           await this.draftManager.reject(id, 'Auto-rejected by system');
           rejected++;
@@ -335,4 +336,34 @@ export class PrecipitationCoordinator {
   getScheduler(): MemoryScheduler {
     return this.scheduler;
   }
+}
+
+/**
+ * 自动审批决策（纯函数，供测试）
+ *
+ * 语义与字段名一致：
+ * - autoApproveBelow：置信度低于此阈值 → 自动批准（低风险建议无需打扰用户）
+ * - autoRejectAbove：置信度高于此阈值 → 自动拒绝（字段语义是"高于阈值说明
+ *   AI 过度自信/过于泛化，不值得沉淀"——沿用字段原意，只修比较方向）
+ *
+ * 注意：原实现的比较方向恰好写反（批准高置信、拒绝低置信），
+ * 且 approve/reject 可同时触发——此处一并修正。
+ */
+export function decideAutoAction(
+  confidence: number,
+  thresholds: { autoApproveBelow?: number; autoRejectAbove?: number }
+): 'approve' | 'reject' | null {
+  if (
+    thresholds.autoRejectAbove !== undefined &&
+    confidence > thresholds.autoRejectAbove
+  ) {
+    return 'reject';
+  }
+  if (
+    thresholds.autoApproveBelow !== undefined &&
+    confidence < thresholds.autoApproveBelow
+  ) {
+    return 'approve';
+  }
+  return null;
 }

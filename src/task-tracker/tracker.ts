@@ -80,9 +80,21 @@ export class TaskTracker {
         updatedAt: new Date().toISOString(),
       };
 
+      // 'running' 状态落地：任务一旦开始推进（推理/执行/验证），
+      // 从 pending 迁移到 running——此前该状态只在类型里存在，从未被设置
+      const isProgressing =
+        updates.reasoning !== undefined ||
+        updates.execution !== undefined ||
+        updates.verification !== undefined;
+      if (isProgressing && updatedTask.status === 'pending' && !updates.status) {
+        updatedTask.status = 'running';
+      }
+
       // Update metadata status
       if (updates.status) {
         updatedTask.metadata.status = updates.status;
+      } else if (updatedTask.metadata.status === 'pending' && updatedTask.status === 'running') {
+        updatedTask.metadata.status = 'running';
       }
 
       // Update currentTask reference

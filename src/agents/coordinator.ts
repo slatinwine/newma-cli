@@ -226,25 +226,70 @@ Return a JSON object with:
 
   /**
    * Execute a single task
+   *
+   * 动态重派落地：任务失败时按 maxRetries 轮换到其他具备同等
+   * 能力的 agent 重试（dynamicReassignment 默认开启——此前该配置
+   * 只在类型里存在，无任何消费者）。无备用 agent 时用原 agent 重试。
    */
   private async executeTask(
     task: AgentTask,
     context: AgentContext,
     options?: AgentExecutionOptions
   ): Promise<AgentResult> {
-    // Find best agent for this task
-    const agent = this.selectAgent(task);
+    const maxRetries = options?.maxRetries ?? 1;
+    const dynamic = options?.dynamicReassignment ?? true;
+    const triedAgentIds = new Set<string>();
 
-    if (!agent) {
-      return {
-        success: false,
-        agentId: 'none',
-        taskId: task.id,
-        output: 'No suitable agent found',
-        error: `No agent available for capabilities: ${task.capabilities.join(', ')}`,
-      };
+    let result: AgentResult | undefined;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      // 轮换选agent：排除已试过的（无备用时回落到原 agent）
+      const agent = this.selectAgent(task, dynamic ? triedAgentIds : undefined);
+
+      if (!agent) {
+        if (attempt === 0) {
+          return {
+            success: false,
+            agentId: 'none',
+            taskId: task.id,
+            output: 'No suitable agent found',
+            error: `No agent available for capabilities: ${task.capabilities.join(', ')}`,
+          };
+        }
+        break; // 重试轮次无备用 agent，用上一轮结果
+      }
+
+      triedAgentIds.add(agent.id);
+      result = await this.attemptWithAgent(agent, task, context, options);
+
+      if (result.success) {
+        return result;
+      }
+
+      if (attempt < maxRetries) {
+        const nextAgent = this.selectAgent(task, dynamic ? triedAgentIds : undefined);
+        console.log(
+          chalk.yellow(
+            `🔁 Retrying ${task.id} (${attempt + 1}/${maxRetries})` +
+              (nextAgent && nextAgent.id !== agent.id
+                ? ` with ${nextAgent.name} (dynamic reassignment)`
+                : '')
+          )
+        );
+      }
     }
 
+    return result!;
+  }
+
+  /**
+   * 用指定 agent 执行一次任务尝试
+   */
+  private async attemptWithAgent(
+    agent: Agent,
+    task: AgentTask,
+    context: AgentContext,
+    options?: AgentExecutionOptions
+  ): Promise<AgentResult> {
     // Update task status
     task.status = 'in_progress';
     task.assignedTo = agent.id;
@@ -286,14 +331,21 @@ Return a JSON object with:
 
   /**
    * Select the best agent for a task
+   *
+   * excludeIds：动态重派时排除已失败的 agent，轮换到下一个
+   * 具备同等能力的候选（无候选时由调用方回落原 agent）
    */
-  private selectAgent(task: AgentTask): Agent | undefined {
+  private selectAgent(task: AgentTask, excludeIds?: Set<string>): Agent | undefined {
+    let fallback: Agent | undefined;
     for (const agent of this.agents.values()) {
       if (agent.canHandle(task)) {
-        return agent;
+        if (!excludeIds?.has(agent.id)) {
+          return agent;
+        }
+        fallback = fallback ?? agent;
       }
     }
-    return undefined;
+    return excludeIds ? undefined : fallback;
   }
 
   /**

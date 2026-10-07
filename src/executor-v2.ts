@@ -314,6 +314,11 @@ export class ToolExecutor {
 
   /**
    * Execute a legacy action (backward compatibility)
+   *
+   * 破坏性操作（create/modify/delete）执行前创建还原点，
+   * 并把回滚信息填入 rollbackData（RollbackSnapshot 形状，
+   * 供 ExecutionTracker 记录审计轨迹）——此前 rollbackManager
+   * 参数被接受但从未使用。
    */
   async executeAction(
     action: any,
@@ -322,13 +327,37 @@ export class ToolExecutor {
     // Convert action to tool call
     const call = this.registry.actionToToolCall(action);
 
+    // Destructive actions get a restore point first
+    let rollbackData: any;
+    if (
+      rollbackManager?.isAvailable() &&
+      ['create', 'modify', 'delete'].includes(action?.type)
+    ) {
+      try {
+        const hash = await rollbackManager.createRestorePoint(
+          action.type,
+          action.path
+        );
+        if (hash) {
+          rollbackData = { type: 'git_commit', commitHash: hash };
+        }
+      } catch {
+        // 还原点失败不阻塞执行
+      }
+    }
+    if (!rollbackData) {
+      rollbackData = { type: 'none' };
+    }
+
+    const startTime = Date.now();
     // Execute tool call
     const result = await this.executeToolCall(call);
 
     return {
       success: result.success,
       error: result.error,
-      duration: 0,
+      rollbackData,
+      duration: Date.now() - startTime,
     };
   }
 

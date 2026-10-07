@@ -163,4 +163,14 @@ export interface AgentExecutionOptions {
   callbacks?: StreamingCallback;
   timeout?: number;
   maxIterations?: number;
+  /**
+   * 失败后的重试次数上限（换 agent 重派也算一次重试）
+   * 默认 1——即失败后最多再试一次
+   */
+  maxRetries?: number;
+  /**
+   * 动态重派：任务失败时轮换到另一个具备同等能力的 agent 重试
+   * （对应 ultrathink MultiAgentConfig.dynamicReassignment，默认开启）
+   */
+  dynamicReassignment?: boolean;
 }

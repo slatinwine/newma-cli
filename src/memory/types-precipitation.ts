@@ -9,7 +9,15 @@
  */
 export interface Evidence {
   /** 证据来源 */
-  source: 'errors' | 'history' | 'preferences' | 'context' | 'reasoning' | 'decisions' | 'sessions';
+  source:
+    | 'errors'
+    | 'history'
+    | 'preferences'
+    | 'context'
+    | 'reasoning'
+    | 'decisions'
+    | 'sessions'
+    | 'branches'; // 🎮 分支树结局（哪些决策路线成功/失败/被放弃）
   /** 证据描述 */
   description: string;
   /** 具体示例 */
@@ -179,6 +187,8 @@ export interface MemoryDataSummary {
   decisions: any[];
   /** 会话历史 */
   sessions: any[];
+  /** 🎮 分支树结局（决策路线的成功/失败/放弃统计） */
+  branches?: any[];
   /** 数据时间范围 */
   dateRange: {
     start: Date;

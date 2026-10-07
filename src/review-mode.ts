@@ -45,6 +45,36 @@ const DEFAULT_CONFIG: ReviewModeConfig = {
 let sessionBypassEnabled = false;
 
 /**
+ * 🎮 批准时自动存档钩子（由 REPL 注入 TimeTravelManager 的存档逻辑）
+ * review-mode 保持解耦：不直接依赖记忆系统
+ */
+export type ReviewAutoSaveHook = (
+  change: FileChange,
+  gitHash?: string
+) => Promise<void>;
+
+let reviewAutoSaveHook: ReviewAutoSaveHook | null = null;
+
+/**
+ * 设置/清除批准时自动存档钩子
+ */
+export function setReviewAutoSaveHook(hook: ReviewAutoSaveHook | null): void {
+  reviewAutoSaveHook = hook;
+}
+
+/**
+ * 触发自动存档（静默失败）
+ */
+async function triggerAutoSave(change: FileChange, gitHash?: string): Promise<void> {
+  if (!reviewAutoSaveHook) return;
+  try {
+    await reviewAutoSaveHook(change, gitHash);
+  } catch {
+    // 自动存档失败不影响审查流程
+  }
+}
+
+/**
  * 设置会话免审状态
  */
 export function setSessionBypass(enabled: boolean): void {
@@ -101,50 +131,112 @@ export function generateDiff(
       lines.push(`... (${oldContent.split('\n').length - 10} more lines)`);
     }
   } else {
-    // 修改文件
+    // 修改文件：LCS 行级 diff
     lines.push('📝 修改文件');
     lines.push('');
-    
+
     const oldLines = oldContent.split('\n');
     const newLines = newContent.split('\n');
-    
-    // 简单的行对比
-    const maxLines = Math.max(oldLines.length, newLines.length);
-    const changedLines: { old: string | null; new: string | null; lineNum: number }[] = [];
-    
-    for (let i = 0; i < maxLines; i++) {
-      const oldLine = i < oldLines.length ? oldLines[i] : null;
-      const newLine = i < newLines.length ? newLines[i] : null;
-      
-      if (oldLine !== newLine) {
-        changedLines.push({ old: oldLine, new: newLine, lineNum: i + 1 });
+
+    // 超大文件退化为前后采样（LCS 矩阵 O(n·m) 会爆内存）
+    if (oldLines.length * newLines.length > 4_000_000) {
+      lines.push(`⚠️  文件过大（${oldLines.length} → ${newLines.length} 行），显示首部采样：`);
+      lines.push('--- old (first 10) ---');
+      oldLines.slice(0, 10).forEach((l) => lines.push(`- ${l}`));
+      lines.push('--- new (first 10) ---');
+      newLines.slice(0, 10).forEach((l) => lines.push(`+ ${l}`));
+      lines.push('─'.repeat(60));
+      return lines.join('\n');
+    }
+
+    // 公共前后缀先剪掉（多数编辑是局部的，能把 LCS 矩阵大幅缩小）
+    let prefix = 0;
+    while (
+      prefix < oldLines.length &&
+      prefix < newLines.length &&
+      oldLines[prefix] === newLines[prefix]
+    ) {
+      prefix++;
+    }
+    let suffix = 0;
+    while (
+      suffix < oldLines.length - prefix &&
+      suffix < newLines.length - prefix &&
+      oldLines[oldLines.length - 1 - suffix] === newLines[newLines.length - 1 - suffix]
+    ) {
+      suffix++;
+    }
+
+    const midOld = oldLines.slice(prefix, oldLines.length - suffix);
+    const midNew = newLines.slice(prefix, newLines.length - suffix);
+
+    let removed = 0;
+    let added = 0;
+
+    if (midOld.length === 0 || midNew.length === 0) {
+      // 纯增或纯删
+      midOld.forEach((l) => { lines.push(`- ${l}`); removed++; });
+      midNew.forEach((l) => { lines.push(`+ ${l}`); added++; });
+    } else {
+      // LCS 对齐（替换原先"按行号一一对比"——旧实现在文件头部插入一行
+      // 会导致后续所有行都被判为变更）
+      const lcs = lcsLengthMatrix(midOld, midNew);
+      let i = 0;
+      let j = 0;
+      let shown = 0;
+      const MAX_DIFF_LINES = 200;
+
+      while (i < midOld.length && j < midNew.length && shown < MAX_DIFF_LINES) {
+        if (midOld[i] === midNew[j]) {
+          i++;
+          j++;
+        } else if (
+          j < midNew.length &&
+          (i >= midOld.length || lcs[i + 1][j] <= lcs[i][j + 1])
+        ) {
+          lines.push(`+ ${midNew[j]}`); added++; j++; shown++;
+        } else {
+          lines.push(`- ${midOld[i]}`); removed++; i++; shown++;
+        }
+      }
+      while (i < midOld.length && shown < MAX_DIFF_LINES) {
+        lines.push(`- ${midOld[i]}`); removed++; i++; shown++;
+      }
+      while (j < midNew.length && shown < MAX_DIFF_LINES) {
+        lines.push(`+ ${midNew[j]}`); added++; j++; shown++;
+      }
+      if (i < midOld.length || j < midNew.length) {
+        lines.push(`... (${midOld.length - i + midNew.length - j} more changed lines)`);
       }
     }
-    
-    // 只显示变更的行（最多显示 30 行变更）
-    const displayChanges = changedLines.slice(0, 30);
-    
-    displayChanges.forEach(({ old, new: newL, lineNum }) => {
-      if (old !== null && newL !== null) {
-        lines.push(`~ ${lineNum}: "${old}" → "${newL}"`);
-      } else if (old !== null) {
-        lines.push(`- ${lineNum}: "${old}"`);
-      } else {
-        lines.push(`+ ${lineNum}: "${newL}"`);
-      }
-    });
-    
-    if (changedLines.length > 30) {
-      lines.push(`... (${changedLines.length - 30} more changes)`);
-    }
-    
+
+    if (prefix > 0) lines.push(`  (${prefix} unchanged leading lines)`);
+    if (suffix > 0) lines.push(`  (${suffix} unchanged trailing lines)`);
     lines.push('');
-    lines.push(`📊 统计: ${changedLines.length} 行变更 (原 ${oldLines.length} 行 → 新 ${newLines.length} 行)`);
+    lines.push(`📊 统计: +${added} / -${removed} (原 ${oldLines.length} 行 → 新 ${newLines.length} 行)`);
   }
-  
+
   lines.push('─'.repeat(60));
-  
+
   return lines.join('\n');
+}
+
+/**
+ * LCS 长度矩阵（dp[i][j] = a[i:] 与 b[j:] 的最长公共子序列长度）
+ */
+function lcsLengthMatrix(a: string[], b: string[]): number[][] {
+  const dp: number[][] = Array.from({ length: a.length + 1 }, () =>
+    new Array(b.length + 1).fill(0)
+  );
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      dp[i][j] =
+        a[i] === b[j]
+          ? dp[i + 1][j + 1] + 1
+          : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  return dp;
 }
 
 /**
@@ -251,17 +343,18 @@ export async function reviewFileChange(
   // 如果会话免审已开启，直接批准
   if (sessionBypassEnabled) {
     console.log(`\n📄 ${change.path} - ✅ 自动批准（会话免审）`);
-    
+
     // 仍然创建备份（如果配置了）
     if (finalConfig.autoBackup && projectRoot) {
       try {
         const rollback = new RollbackManager(projectRoot);
-        await rollback.createRestorePoint(change.type, change.path);
+        const hash = await rollback.createRestorePoint(change.type, change.path);
+        await triggerAutoSave(change, hash ?? undefined);
       } catch (error) {
         // 静默失败
       }
     }
-    
+
     return { approved: true, sessionBypass: true };
   }
   
@@ -283,7 +376,7 @@ export async function reviewFileChange(
   switch (decision) {
     case 'approve':
       console.log('✅ 已批准');
-      
+
       // 创建备份
       if (finalConfig.autoBackup && projectRoot) {
         try {
@@ -292,17 +385,18 @@ export async function reviewFileChange(
           if (hash) {
             console.log(`📦 已创建还原点: ${hash.substring(0, 7)}`);
           }
+          await triggerAutoSave(change, hash ?? undefined);
         } catch (error) {
           console.warn('⚠️  创建还原点失败:', (error as Error).message);
         }
       }
-      
+
       return { approved: true };
-      
+
     case 'approve-all':
       setSessionBypass(true);
       console.log('✅ 已批准');
-      
+
       // 创建备份
       if (finalConfig.autoBackup && projectRoot) {
         try {
@@ -311,11 +405,12 @@ export async function reviewFileChange(
           if (hash) {
             console.log(`📦 已创建还原点: ${hash.substring(0, 7)}`);
           }
+          await triggerAutoSave(change, hash ?? undefined);
         } catch (error) {
           console.warn('⚠️  创建还原点失败:', (error as Error).message);
         }
       }
-      
+
       return { approved: true, sessionBypass: true };
       
     case 'reject-all':

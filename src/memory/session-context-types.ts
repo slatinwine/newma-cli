@@ -39,6 +39,12 @@ export interface SessionMessage {
   sessionId: string;
 
   /**
+   * 父消息 ID（分支树语义：默认是前一条消息；
+   * 时间旅行后指向回跳目标的消息，旧分支消息仍保留）
+   */
+  parentMessageId?: string;
+
+  /**
    * Token 数量（可选）
    */
   tokens?: number;
@@ -124,6 +130,16 @@ export interface SessionRecord {
     topics: string[];
     techStack: string[];
   };
+
+  /**
+   * 废弃分支的消息区间（时间旅行用）：
+   * 这些消息保留在文件中（galgame 的 backlog），但不再进入 AI 上下文
+   */
+  abandonedRanges?: Array<{
+    fromMessageId: string;
+    toMessageId: string;
+    reason?: string;
+  }>;
 }
 
 /**

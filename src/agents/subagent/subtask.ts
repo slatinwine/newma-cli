@@ -359,7 +359,7 @@ export interface TimelineEvent {
   /**
    * 事件类型
    */
-  type: 'task_started' | 'task_completed' | 'task_failed' | 'execution_started' | 'execution_finished';
+  type: 'task_started' | 'task_completed' | 'task_failed' | 'task_retry' | 'execution_started' | 'execution_finished';
 
   /**
    * 相关的子任务 ID

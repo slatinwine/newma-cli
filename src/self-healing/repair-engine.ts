@@ -26,6 +26,8 @@ export class RepairEngine {
   private verifier: Verifier;
   private tracker: ExecutionTracker;
   private repairsHistory: RepairResult[] = [];
+  /** 最近一次 pre-repair checkpoint 的 commit hash（回滚时使用） */
+  private lastCheckpointHash: string | null = null;
 
   constructor(
     toolGenerator: ToolGenerator,
@@ -52,7 +54,7 @@ export class RepairEngine {
     // Create rollback checkpoint before making changes
     if (action.type === 'modify_code' || action.type === 'create_tool') {
       try {
-        await this.rollbackManager.createRestorePoint('pre-repair');
+        this.lastCheckpointHash = await this.rollbackManager.createRestorePoint('pre-repair');
       } catch (error) {
         console.error(chalk.yellow('[RepairEngine] ⚠️  Could not create checkpoint'));
       }
@@ -118,12 +120,14 @@ export class RepairEngine {
     } catch (error: any) {
       console.error(chalk.red('[RepairEngine] ❌ Repair failed:'), error.message);
 
-      // Rollback if available
-      try {
-        await this.rollbackManager.rollback('pre-repair');
-        console.log(chalk.yellow('[RepairEngine] ↩️  Rolled back changes'));
-      } catch (rollbackError) {
-        console.error(chalk.red('[RepairEngine] ❌ Rollback failed:'), rollbackError);
+      // Rollback if a checkpoint hash was captured earlier
+      if (this.lastCheckpointHash) {
+        try {
+          await this.rollbackManager.rollback(this.lastCheckpointHash);
+          console.log(chalk.yellow('[RepairEngine] ↩️  Rolled back changes'));
+        } catch (rollbackError) {
+          console.error(chalk.red('[RepairEngine] ❌ Rollback failed:'), rollbackError);
+        }
       }
 
       return {

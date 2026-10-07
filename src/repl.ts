@@ -34,6 +34,7 @@ import { getPrecipitationConfig, NewmaConfig } from './config'; // 🔥 新增�
 import { SimpleSkillManager } from './skills/simple-loader'; // 🔥 新增：Skill Manager
 import { SkillRegistry } from './skills/registry'; // 🔥 新增：Skill Registry
 import { StateTracker, ExecutionStage, createStateTracker } from './state/tracker'; // 🔥 新增：状态追踪器
+import { TimeTravelManager } from './time-travel'; // 🎮 时间旅行（存档/分支树协调器）
 
 /**
  * REPL 管理器
@@ -67,10 +68,19 @@ export class REPLManager {
   private runtime?: any; // 🔥 新增：事件驱动运行时（可选）
   private runtimeReady: Promise<void> = Promise.resolve(); // 运行时初始化完成 promise
   private stateTracker: StateTracker; // 🔥 新增：状态追踪器
+  private timeTravel?: TimeTravelManager; // 🎮 存档/分支树/时间旅行协调器
+  private lastPlanDecisionNodeId?: string; // 🎮 最近一次计划选择的决策节点（结局回填用）
+  /**
+   * 🕘 分支树/存档归属的会话 ID（"周目"标识）
+   * /continue 或 /load 后切换为被恢复的会话——新决策、存档、flags
+   * 都记入同一周目，与注入管道（读活跃标记）保持一致
+   */
+  private branchSessionId: string = '';
 
   constructor(session: SessionManager, silent: boolean = false, hookSystem?: HookSystem) {
     this.silent = silent;
     this.session = session;
+    this.branchSessionId = session.getSessionId();
     this.historyFilePath = path.join(session.getProjectRoot(), '.kode', 'history.json');
     this.rollbackManager = new RollbackManager(session.getProjectRoot());
     this.hookSystem = hookSystem;
@@ -244,6 +254,32 @@ export class REPLManager {
    */
   private initializeMemorySystem(): void {
     this.session.initializeMemory().then(() => {
+      // 🎮 初始化时间旅行协调器（共享 session 的上下文管理器与 memo 的分支树）
+      try {
+        this.timeTravel = new TimeTravelManager(
+          this.session.getProjectRoot(),
+          this.session.getSessionContextManager(),
+          this.rollbackManager,
+          this.memoPlugin?.getBranchTreeManager()
+        );
+        // 标记活跃会话（ai.ts 注入管道据此定位 flags/前世记忆）
+        void this.memoPlugin?.setActiveBranchSession(this.session.getSessionId());
+
+        // 🎮 review-mode 批准时自动存档（钩子注入，review-mode 不依赖记忆系统）
+        void import('./review-mode').then(({ setReviewAutoSaveHook }) => {
+          setReviewAutoSaveHook(async (change, gitHash) => {
+            if (!this.timeTravel) return;
+            await this.timeTravel.createSave({
+              sessionId: this.branchSessionId,
+              reason: 'auto: review approve',
+              summary: `${change.type} ${change.path}`,
+              gitHashOverride: gitHash,
+            });
+          });
+        });
+      } catch (error) {
+        console.log(chalk.gray(`[TimeTravel] Not available: ${(error as Error).message}`));
+      }
       // 记忆系统初始化成功
     }).catch((error) => {
       console.log(chalk.gray(`[Memory] Failed to initialize: ${(error as Error).message}`));
@@ -720,6 +756,17 @@ export class REPLManager {
           process.stdout.write(chalk.cyan('\n\n👋 Session ended. Goodbye!\n\n'));
           this.session.printStatus();
 
+          // 🎮 结局自动结算：残留 active 分支批量标记 abandoned（MCTS 统计完整性）
+          if (this.timeTravel) {
+            try {
+              await this.timeTravel
+                .getBranchTreeManager()
+                .closeActiveBranches(this.branchSessionId, 'session ended');
+            } catch {
+              // 结算失败不影响退出
+            }
+          }
+
           // 生成推理追踪报告（如果启用）
           if (this.session.isReasoningTrackingEnabled()) {
             await this.generateReasoningReport();
@@ -895,6 +942,43 @@ export class REPLManager {
 
       case '/undo':
         await this.handleUndoCommand();
+        break;
+
+      // 🎮 游戏存档模式命令（Phase 1）
+      case '/save':
+        await this.handleSaveCommand(args);
+        break;
+
+      case '/saves':
+        await this.handleSavesCommand(args);
+        break;
+
+      case '/load':
+        await this.handleLoadCommand(args);
+        break;
+
+      // 🎮 Galgame 分支树命令（Phase 2/3）
+      case '/tree':
+        await this.handleTreeCommand();
+        break;
+
+      case '/flags':
+        await this.handleFlagsCommand(args);
+        break;
+
+      case '/back-to':
+        await this.handleBackToCommand(args);
+        break;
+
+      // 🎲 MCTS 探索推荐（AlphaZero 风格）
+      case '/next':
+        await this.handleNextCommand(args);
+        break;
+
+      // 🕘 继续最近会话（Claude Code --continue 的 galgame 版）
+      case '/continue':
+      case '/resume-session':
+        await this.handleContinueCommand();
         break;
 
       case '/modes':
@@ -1407,6 +1491,16 @@ export class REPLManager {
     console.log(chalk.white('/memory-sessions') + chalk.gray(' - List all sessions in memory'));
     console.log(chalk.white('/memory-errors') + chalk.gray('  - Show error memory'));
     console.log(chalk.white('/memory-search') + chalk.gray(' - Search in session history'));
+    console.log(chalk.cyan('\n🎮 Save & Branch System (game-style)'));
+    console.log(chalk.cyan('─'.repeat(50)));
+    console.log(chalk.white('/save [name]') + chalk.gray('   - Create save point (git + messages + flags)'));
+    console.log(chalk.white('/saves [--all]') + chalk.gray(' - List save points (all sessions with --all)'));
+    console.log(chalk.white('/load <id|name>') + chalk.gray(' - Restore a save point (lossless)'));
+    console.log(chalk.white('/tree') + chalk.gray('           - Show decision tree (galgame flowchart)'));
+    console.log(chalk.white('/flags') + chalk.gray('           - Show/set session flags (/flags set k=v)'));
+    console.log(chalk.white('/back-to <id>') + chalk.gray('   - Time travel to a decision/save point'));
+    console.log(chalk.white('/next') + chalk.gray('           - MCTS recommendation: which branch to try next'));
+    console.log(chalk.white('/continue') + chalk.gray('        - Continue the most recent session (AI remembers)'));
     console.log(chalk.cyan('\n📦 Skill Management'));
     console.log(chalk.cyan('─'.repeat(50)));
     console.log(chalk.white('/skill-list') + chalk.gray('       - List installed skills'));
@@ -1977,6 +2071,15 @@ export class REPLManager {
       const [hash, message, meta] = lastCommit.split('|');
       const shortHash = hash.substring(0, 8);
 
+      // 🎮 区分 kode checkpoint 与用户自己的提交
+      const isKodeCheckpoint = this.rollbackManager.isKodeCheckpoint(hash);
+      if (!isKodeCheckpoint) {
+        console.log(chalk.yellow('\n⚠️  HEAD commit was NOT created by newma'));
+        console.log(chalk.gray(`Commit: ${shortHash} - ${message}`));
+        console.log(chalk.gray('This looks like your own commit. /undo will permanently discard it.'));
+        console.log(chalk.gray('If you want to rewind a newma change, use /saves + /back-to instead (lossless).'));
+      }
+
       // Get the list of files changed in the last commit
       const changedFiles = execFileSync('git', ['diff', '--name-only', 'HEAD~1', 'HEAD'], {
         cwd: root,
@@ -2000,13 +2103,15 @@ export class REPLManager {
       console.log(chalk.gray('\nThis will reset to the previous commit.'));
       console.log(chalk.yellow('═'.repeat(60)));
 
-      // Ask for confirmation
+      // Ask for confirmation (non-kode commits require explicit opt-in)
       const answers = await inquirer.prompt([
         {
           type: 'confirm',
           name: 'confirmed',
-          message: 'Rollback to previous state?',
-          default: false,
+          message: isKodeCheckpoint
+            ? 'Rollback to previous state?'
+            : 'This is YOUR OWN commit. Discard it anyway?',
+          default: isKodeCheckpoint,
         },
       ]);
 
@@ -2311,6 +2416,428 @@ export class REPLManager {
     console.log(chalk.gray('  • Use Up/Down arrows to browse history'));
     console.log(chalk.gray('  • Type /history to see full history'));
     console.log(chalk.cyan('═'.repeat(60)) + '\n');
+  }
+
+  // ==================== 🎮 游戏存档 / Galgame 分支命令 ====================
+
+  /**
+   * Handle /save [name] - 创建存档点（绑定 git + 消息 + flags + 任务）
+   */
+  private async handleSaveCommand(args: string[]): Promise<void> {
+    if (!this.ensureTimeTravelReady()) return;
+
+    const name = args.join(' ').trim() || undefined;
+
+    try {
+      const save = await this.timeTravel!.createSave({
+        sessionId: this.branchSessionId,
+        name,
+        taskId: this.session.getTaskTracker().getCurrentTaskId() ?? undefined,
+      });
+
+      const label = name ? `"${name}"` : '(quick save)';
+      console.log(chalk.green(`\n💾 Saved ${label}`));
+      console.log(chalk.gray(`   id: ${save.id}`));
+      if (save.gitHash) {
+        console.log(chalk.gray(`   git: ${save.gitHash.substring(0, 7)}`));
+      }
+      console.log(chalk.gray(`   messages: ${save.messageCount}`));
+      console.log(chalk.gray(`   Use /load ${save.id} to restore\n`));
+    } catch (error: any) {
+      console.log(chalk.red(`\n❗ Save failed: ${error.message}\n`));
+    }
+  }
+
+  /**
+   * Handle /saves - 列出全部存档槽（跨会话）
+   */
+  private async handleSavesCommand(args: string[]): Promise<void> {
+    if (!this.ensureTimeTravelReady()) return;
+
+    try {
+      const all = args.includes('--all');
+      const saves = await this.timeTravel!
+        .getSavePointManager()
+        .listSavePoints(all ? undefined : this.branchSessionId);
+
+      console.log(chalk.cyan('\n💾 Save Points') + chalk.gray(all ? ' (all sessions)' : ' (this session, --all for all)'));
+      console.log(chalk.cyan('═'.repeat(60)));
+      console.log(this.timeTravel!.getSavePointManager().formatSaveList(saves));
+      console.log(chalk.cyan('═'.repeat(60)) + '\n');
+    } catch (error: any) {
+      console.log(chalk.red(`\n❗ Failed to list saves: ${error.message}\n`));
+    }
+  }
+
+  /**
+   * Handle /load <id|name> - 读档（会话消息 + flags + git 无损恢复）
+   */
+  private async handleLoadCommand(args: string[]): Promise<void> {
+    if (!this.ensureTimeTravelReady()) return;
+
+    const target = args.join(' ').trim();
+    if (!target) {
+      console.log(chalk.yellow('\n⚠️  Usage: /load <save-id | save-name>'));
+      console.log(chalk.gray('Run /saves to list available save points.\n'));
+      return;
+    }
+
+    try {
+      const saves = await this.timeTravel!.getSavePointManager();
+      const save = await saves.getSavePoint(target);
+
+      if (!save) {
+        console.log(chalk.yellow(`\n⚠️  Save point not found: ${target}`));
+        console.log(chalk.gray('Run /saves to list available save points.\n'));
+        return;
+      }
+
+      console.log(chalk.cyan(`\n📥 Loading ${save.name ? `"${save.name}"` : save.id}...`));
+      console.log(chalk.gray(`   from session ${save.sessionId}, ${save.messageCount} messages`));
+
+      this.rl.pause();
+      const { confirmed } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirmed',
+          message: 'Restore this save point? (current work is preserved on a git branch)',
+          default: true,
+        },
+      ]);
+      this.rl.resume();
+
+      if (!confirmed) {
+        console.log(chalk.gray('\nLoad cancelled.\n'));
+        return;
+      }
+
+      const result = await this.timeTravel!.loadSave(this.branchSessionId, save);
+
+      if (result.success) {
+        console.log(chalk.green('\n✅ Save restored'));
+        if (result.preservedBranch) {
+          console.log(chalk.gray(`   current work preserved on git branch: ${result.preservedBranch}`));
+        }
+        if (result.rewindBranch) {
+          console.log(chalk.gray(`   checked out git branch: ${result.rewindBranch}`));
+        }
+        if (result.gitSkipped) {
+          console.log(chalk.yellow(`   ⚠️  git not restored: ${result.gitSkipped}`));
+        }
+        // 周目切换：读档后决策/存档记入存档所属会话
+        this.branchSessionId = save.sessionId;
+        console.log(chalk.gray('   Session context and flags restored.'));
+        console.log(chalk.gray('   Use /tree to see the decision tree.\n'));
+      } else {
+        console.log(chalk.red(`\n❗ Load failed: ${result.error}\n`));
+      }
+    } catch (error: any) {
+      console.log(chalk.red(`\n❗ Load failed: ${error.message}\n`));
+    }
+  }
+
+  /**
+   * Handle /tree - 渲染 galgame 式决策流程图
+   */
+  private async handleTreeCommand(): Promise<void> {
+    if (!this.ensureTimeTravelReady()) return;
+
+    try {
+      const text = await this.timeTravel!
+        .getBranchTreeManager()
+        .renderTree(this.branchSessionId);
+      console.log(chalk.cyan('\n🌳 Decision Tree'));
+      console.log(chalk.cyan('═'.repeat(60)));
+      console.log(text);
+      console.log(chalk.cyan('═'.repeat(60)) + '\n');
+    } catch (error: any) {
+      console.log(chalk.red(`\n❗ Failed to render tree: ${error.message}\n`));
+    }
+  }
+
+  /**
+   * Handle /flags [set k=v | clear k] - 会话事件标记（galgame flags）
+   */
+  private async handleFlagsCommand(args: string[]): Promise<void> {
+    if (!this.ensureTimeTravelReady()) return;
+
+    const branchTree = this.timeTravel!.getBranchTreeManager();
+    const sessionId = this.branchSessionId;
+
+    try {
+      const sub = (args[0] || '').toLowerCase();
+
+      if (sub === 'set') {
+        const pair = args.slice(1).join(' ');
+        const eq = pair.indexOf('=');
+        if (eq <= 0) {
+          console.log(chalk.yellow('\n⚠️  Usage: /flags set <key>=<value>\n'));
+          return;
+        }
+        const key = pair.substring(0, eq).trim();
+        const value = pair.substring(eq + 1).trim();
+        await branchTree.setFlag(sessionId, key, value, 'user');
+        console.log(chalk.green(`\n🎏 Flag set: ${key} = ${value}`));
+        console.log(chalk.gray('   It will be injected into all plan generation.\n'));
+        return;
+      }
+
+      if (sub === 'clear') {
+        const key = args[1];
+        if (!key) {
+          console.log(chalk.yellow('\n⚠️  Usage: /flags clear <key>\n'));
+          return;
+        }
+        const removed = await branchTree.clearFlag(sessionId, key);
+        console.log(removed ? chalk.green(`\n🎏 Flag cleared: ${key}\n`) : chalk.yellow(`\n⚠️  No such flag: ${key}\n`));
+        return;
+      }
+
+      const flags = await branchTree.getFlags(sessionId);
+      console.log(chalk.cyan('\n🎏 Session Flags'));
+      console.log(chalk.cyan('═'.repeat(60)));
+      if (flags.length === 0) {
+        console.log(chalk.gray('No flags set. Use /flags set <key>=<value>'));
+        console.log(chalk.gray('e.g. /flags set state-lib=zustand:confirmed'));
+      } else {
+        flags.forEach((f) => {
+          console.log(`${chalk.white(f.key)} = ${chalk.cyan(f.value)} ${chalk.gray(`[${f.source}]`)}`);
+        });
+      }
+      console.log(chalk.cyan('═'.repeat(60)) + '\n');
+    } catch (error: any) {
+      console.log(chalk.red(`\n❗ Flags command failed: ${error.message}\n`));
+    }
+  }
+
+  /**
+   * Handle /back-to <decision-node | save-id> - 时间旅行（galgame 无损回跳）
+   */
+  private async handleBackToCommand(args: string[]): Promise<void> {
+    if (!this.ensureTimeTravelReady()) return;
+
+    const target = args.join(' ').trim();
+    if (!target) {
+      console.log(chalk.yellow('\n⚠️  Usage: /back-to <decision-id | save-id | save-name>'));
+      console.log(chalk.gray('Run /tree to see decision nodes, /saves for save points.'));
+      console.log(chalk.gray('Time travel is lossless: abandoned branches are preserved.\n'));
+      return;
+    }
+
+    try {
+      const sessionId = this.branchSessionId;
+      const branchTree = this.timeTravel!.getBranchTreeManager();
+      const saves = this.timeTravel!.getSavePointManager();
+
+      // 优先匹配决策节点，其次匹配存档点
+      let backTarget = await this.timeTravel!.targetFromDecision(sessionId, target);
+      let source = 'decision';
+
+      if (!backTarget) {
+        const save = await saves.getSavePoint(target);
+        if (save) {
+          backTarget = this.timeTravel!.targetFromSave(save);
+          source = 'save';
+        }
+      }
+
+      if (!backTarget) {
+        console.log(chalk.yellow(`\n⚠️  Target not found: ${target}`));
+        console.log(chalk.gray('Run /tree for decision nodes or /saves for save points.\n'));
+        return;
+      }
+
+      console.log(chalk.magenta(`\n⏪ Time Travel`));
+      console.log(chalk.cyan('═'.repeat(60)));
+      console.log(chalk.gray(`Target (${source}): ${backTarget.label}`));
+      if (backTarget.gitHash) {
+        console.log(chalk.gray(`git: ${backTarget.gitHash.substring(0, 7)}`));
+      }
+      console.log(chalk.gray('The current branch will be preserved (abandoned, not deleted).'));
+      console.log(chalk.gray('Prior attempts will be injected as PRIOR BRANCH MEMORY.'));
+      console.log(chalk.cyan('═'.repeat(60)));
+
+      this.rl.pause();
+      const { confirmed } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirmed',
+          message: 'Rewind to this point?',
+          default: false,
+        },
+      ]);
+      this.rl.resume();
+
+      if (!confirmed) {
+        console.log(chalk.gray('\nTime travel cancelled.\n'));
+        return;
+      }
+
+      const result = await this.timeTravel!.backTo(sessionId, backTarget);
+
+      if (result.success) {
+        console.log(chalk.green('\n✅ Rewound successfully'));
+        if (result.preservedBranch) {
+          console.log(chalk.gray(`   old branch preserved as: ${result.preservedBranch}`));
+        }
+        if (result.rewindBranch) {
+          console.log(chalk.gray(`   now on git branch: ${result.rewindBranch}`));
+        }
+        if (result.gitSkipped) {
+          console.log(chalk.yellow(`   ⚠️  git not rewound: ${result.gitSkipped}`));
+          console.log(chalk.gray('      (session/decision context was still rewound)'));
+        }
+        if (result.abandonedDecisions > 0) {
+          console.log(chalk.gray(`   ${result.abandonedDecisions} decision(s) marked abandoned`));
+        }
+        if (result.abandonedMessages > 0) {
+          console.log(chalk.gray(`   ${result.abandonedMessages} message(s) moved out of AI context`));
+        }
+        console.log(chalk.gray('   Continue working — the AI remembers what failed before.\n'));
+      } else {
+        console.log(chalk.red(`\n❗ Time travel failed: ${result.error}\n`));
+      }
+    } catch (error: any) {
+      console.log(chalk.red(`\n❗ Time travel failed: ${error.message}\n`));
+    }
+  }
+
+  /**
+   * Handle /continue - 继续最近一次会话（消息上下文 + flags + 分支树）
+   */
+  private async handleContinueCommand(): Promise<void> {
+    await this.continueLastSession();
+  }
+
+  /**
+   * 继续最近会话（/continue 命令与 CLI --continue 共用）
+   */
+  async continueLastSession(): Promise<boolean> {
+    // 时间旅行系统是异步初始化的——CLI --continue 启动即调用时等它就绪
+    for (let i = 0; i < 20 && !this.timeTravel; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    if (!this.ensureTimeTravelReady()) return false;
+
+    try {
+      const sessionCtx = this.session.getSessionContextManager();
+      const candidates = await sessionCtx.getRecentSessions(5);
+
+      // 找最近一个有实质消息且不是当前会话的历史会话
+      const target = candidates.find(
+        (s) => s.id !== this.session.getSessionId() && s.stats.messageCount > 0
+      );
+
+      if (!target) {
+        console.log(chalk.yellow('\n🕘 No previous session with messages found.'));
+        console.log(chalk.gray('Sessions are saved automatically on exit.\n'));
+        return false;
+      }
+
+      console.log(chalk.cyan(`\n🕘 Continuing session: ${chalk.white(target.title)}`));
+      console.log(chalk.gray(`   id: ${target.id} | ${target.stats.messageCount} messages`));
+
+      const restored = await sessionCtx.restoreSession(target.id);
+      if (!restored) {
+        console.log(chalk.red(`\n❗ Failed to load session ${target.id}\n`));
+        return false;
+      }
+
+      // 活跃会话标记指向恢复的会话（注入管道据此回放对话/flags/前世记忆）
+      await this.timeTravel!.getBranchTreeManager().setActiveSession(target.id);
+      if (this.memoPlugin) {
+        await this.memoPlugin.setActiveBranchSession(target.id);
+      }
+      // 周目标识切换：后续决策/存档/flags 记入同一周目
+      this.branchSessionId = target.id;
+
+      // 回放最近几条，给用户确认感
+      const messages = sessionCtx.getActiveMessages();
+      const recent = messages.slice(-4);
+      if (recent.length > 0) {
+        console.log(chalk.gray('\n   Last exchange:'));
+        for (const m of recent) {
+          const who = m.role === 'user' ? '👤' : m.role === 'assistant' ? '🤖' : '⚙️';
+          const text = m.content.replace(/\n+/g, ' ').slice(0, 72);
+          console.log(chalk.gray(`   ${who} ${text}`));
+        }
+      }
+
+      console.log(chalk.green('\n✅ Session continued — the AI remembers this conversation.'));
+      console.log(chalk.gray('   (conversation replay + flags + branch memory are injected automatically)\n'));
+      return true;
+    } catch (error: any) {
+      console.log(chalk.red(`\n❗ Continue failed: ${error.message}\n`));
+      return false;
+    }
+  }
+
+  /**
+   * 🎮 确认时间旅行系统就绪（惰性提示）
+   */
+  private ensureTimeTravelReady(): boolean {
+    if (!this.timeTravel) {
+      console.log(chalk.yellow('\n⚠️  Save/branch system not ready yet (memory system initializing).'));
+      console.log(chalk.gray('Wait a moment and try again.\n'));
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Handle /next - MCTS 探索推荐（AlphaZero PUCT）
+   *
+   * 展示当前决策点各选项的 Q/N/先验与综合分，
+   * 平衡利用（高 Q 已知好路线）与探索（低 N 未试路线）。
+   */
+  private async handleNextCommand(args: string[]): Promise<void> {
+    if (!this.ensureTimeTravelReady()) return;
+
+    try {
+      const branchTree = this.timeTravel!.getBranchTreeManager();
+      const sessionId = this.branchSessionId;
+      const nodeId = args[0]; // 可选：指定决策节点
+      const rec = await branchTree.getRecommendation(sessionId, nodeId);
+
+      if (!rec) {
+        console.log(chalk.yellow('\n🎲 No decision point with options yet.'));
+        console.log(chalk.gray('Run a /plan task first — choices get recorded automatically.\n'));
+        return;
+      }
+
+      console.log(chalk.cyan('\n🎲 MCTS Exploration Recommendation (AlphaZero PUCT)'));
+      console.log(chalk.cyan('═'.repeat(60)));
+      console.log(chalk.gray(`Decision: "${rec.node.prompt}"`));
+      console.log(chalk.gray(`Tried: ${rec.node.visits ?? 0}x\n`));
+
+      for (const r of rec.ranked) {
+        const prior = r.option.stats?.prior !== undefined
+          ? chalk.gray(` P=${r.option.stats.prior.toFixed(2)}`)
+          : '';
+        const qText = r.n > 0 ? r.q.toFixed(2) : '—';
+        console.log(
+          `  ${chalk.white(`score ${r.score.toFixed(2)}`)}  ` +
+          `${chalk.cyan(r.option.label)}  ` +
+          chalk.gray(`Q=${qText} N=${r.n}`) + prior
+        );
+      }
+
+      console.log(chalk.cyan('─'.repeat(60)));
+      if (rec.exploit && rec.explore) {
+        console.log(chalk.green(`⭐ Best known: ${rec.exploit.option.label} (Q=${rec.exploit.q.toFixed(2)})`));
+        console.log(chalk.magenta(`🔭 Worth exploring: ${rec.explore.option.label} (untried)`));
+      } else if (rec.exploit) {
+        console.log(chalk.green(`⭐ Best known: ${rec.exploit.option.label} (Q=${rec.exploit.q.toFixed(2)})`));
+      } else if (rec.explore) {
+        console.log(chalk.magenta(`🔭 Nothing settled yet — start with: ${rec.explore.option.label}`));
+      }
+
+      console.log(chalk.gray('\nThis recommendation is also injected into plan generation.'));
+      console.log(chalk.gray('Use /back-to <decision-id> to rewind and try another option.'));
+      console.log(chalk.cyan('═'.repeat(60)) + '\n');
+    } catch (error: any) {
+      console.log(chalk.red(`\n❗ Recommendation failed: ${error.message}\n`));
+    }
   }
 
   /**
@@ -3652,6 +4179,49 @@ export class REPLManager {
 
       this.rl.resume();
 
+      // 🎮 记录决策点到分支树（未选项保留为潜在分支，galgame flowchart）
+      if (this.timeTravel) {
+        try {
+          const lastMsg = this.session.getSessionContextManager().getLastMessage();
+          const branchTree = this.timeTravel.getBranchTreeManager();
+          const promptText = requirement.length > 80 ? requirement.slice(0, 77) + '...' : requirement;
+          const planOptions = [
+            { id: 'execute', label: '执行当前计划' },
+            { id: 'modify', label: '修改需求后重新计划' },
+            { id: 'details', label: '查看详细信息' },
+            { id: 'cancel', label: '取消' },
+          ];
+
+          // 🎲 跨会话先验回流：同类历史决策的选项战绩作为初始 P 值
+          // （价值网络回填——上周"增量方案胜率高"会自动影响今天的推荐）
+          let priors: Record<string, number> | undefined;
+          try {
+            priors =
+              (await branchTree.getCrossSessionPriors(
+                promptText,
+                planOptions,
+                this.branchSessionId
+              )) ?? undefined;
+          } catch {
+            // 先验计算失败退化为均匀分布
+          }
+
+          const node = await branchTree.recordDecision({
+            sessionId: this.branchSessionId,
+            type: 'plan-selection',
+            prompt: promptText,
+            options: planOptions,
+            selectedOptionId: choice,
+            priors,
+            messageId: lastMsg?.id,
+            gitHash: this.rollbackManager.getCurrentHash() ?? undefined,
+          });
+          this.lastPlanDecisionNodeId = node?.id;
+        } catch {
+          // 分支记录失败不影响主流程
+        }
+      }
+
       // Handle user's choice
       if (choice === 'cancel') {
         console.log(chalk.yellow('⚠️  Execution cancelled.\n'));
@@ -3777,6 +4347,19 @@ export class REPLManager {
       }
 
       // choice === 'execute' or any other: continue to execution
+      // 🎮 galgame 式自动存档：进入执行（下副本）前留档
+      if (this.timeTravel) {
+        try {
+          await this.timeTravel.createSave({
+            sessionId: this.branchSessionId,
+            reason: 'auto: before execution',
+            summary: requirement.length > 50 ? requirement.slice(0, 47) + '...' : requirement,
+          });
+        } catch {
+          // 自动存档失败不阻塞执行
+        }
+      }
+
       // 执行 Actions
       console.log(chalk.cyan('🚀 Executing...\n'));
 
@@ -3829,6 +4412,21 @@ export class REPLManager {
           executionFailed = true;
           break;
         }
+      }
+
+      // 🎮 回填分支结局（galgame 多结局：succeeded / failed）
+      if (this.timeTravel && this.lastPlanDecisionNodeId) {
+        try {
+          await this.timeTravel.getBranchTreeManager().setOutcome(
+            this.branchSessionId,
+            this.lastPlanDecisionNodeId,
+            executionFailed ? 'failed' : 'succeeded',
+            executionFailed ? 'execution failed — see /back-to to retry from here' : undefined
+          );
+        } catch {
+          // 结局记录失败不影响主流程
+        }
+        this.lastPlanDecisionNodeId = undefined;
       }
 
       if (executionFailed) {

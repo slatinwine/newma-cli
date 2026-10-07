@@ -480,6 +480,15 @@ export function createDefaultCompletionConfig(projectRoot: string): Partial<Comp
       '/memory-sessions',
       '/memory-reasoning',
       '/memory-stats',
+      // 🎮 Game save & galgame branch commands
+      '/save',
+      '/saves',
+      '/load',
+      '/tree',
+      '/flags',
+      '/back-to',
+      '/next',
+      '/continue',
     ],
     aliases: new Map([
       ['?', '/help'],

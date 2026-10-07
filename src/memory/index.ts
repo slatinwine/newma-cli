@@ -18,6 +18,12 @@ export * from './session-context-manager';
 export * from './reasoning-types';
 export * from './reasoning-manager';
 
+// 🎮 Game-style save points & galgame branch tree (Phase 1-3)
+export * from './save-point-types';
+export * from './save-point-manager';
+export * from './branch-tree-types';
+export * from './branch-tree-manager';
+
 // Phase 1: BM25 Semantic Search
 export * from './search';
 

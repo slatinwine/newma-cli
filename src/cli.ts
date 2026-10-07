@@ -54,6 +54,7 @@ program
   .option('--loop', 'Enable loop mode: exit with 0 when done, 1 when not done, 2 on error')
   // 交互模式选项
   .option('-i, --interactive', 'Start interactive REPL mode')
+  .option('-c, --continue', 'Interactive mode: continue the most recent session (auto /continue)')
   .option('--web', 'Start web API server mode for external integration')
   .option('--web-port <port>', 'Web server port (default: 3000)', '3000')
   .option('--web-host <host>', 'Web server host (default: 0.0.0.0)', '0.0.0.0')
@@ -1362,6 +1363,11 @@ async function startInteractiveMode(options: any): Promise<void> {
     // 使用传统的 readline REPL
     const repl = new REPLManager(session, silentMode);
     repl.start();
+
+    // 🕘 --continue/-c：启动后自动继续最近会话（等 REPL 内部就绪）
+    if (options.continue) {
+      void repl.continueLastSession();
+    }
   }
 }
 

@@ -236,6 +236,27 @@ async function getMemoContext(
       // 静默失败，不影响主流程
     }
 
+    // 🎮 Galgame 上下文：会话 flags（事件标记）+ 被弃分支结论（前世记忆）
+    try {
+      const branchContext = await memoPlugin.getActiveBranchContext();
+      if (branchContext) {
+        context += branchContext;
+      }
+    } catch (error) {
+      // 静默失败，不影响主流程
+    }
+
+    // 🕘 活跃对话回放：读档/续聊后当前会话的消息流进入 AI 上下文
+    // （存档系统的最后一公里：恢复的不只是状态，还有对话记忆）
+    try {
+      const conversationContext = await memoPlugin.getActiveConversationContext();
+      if (conversationContext) {
+        context += conversationContext;
+      }
+    } catch (error) {
+      // 静默失败，不影响主流程
+    }
+
     return context;
   } catch (error) {
     // 静默失败，不影响主流程

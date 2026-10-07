@@ -22,6 +22,12 @@ import { ReasoningManager, createReasoningManager } from '../../memory/reasoning
 import { ReasoningStepType, ReasoningStepStatus } from '../../memory/reasoning-types';
 import { MemorySearchEngine, MemorySearchResult, MemorySearchOptions } from '../../memory/search';
 import { MemoryContextInjector } from '../../memory/injection';
+import {
+  BranchTreeManager,
+  createBranchTreeManager,
+  RecordDecisionOptions,
+} from '../../memory/branch-tree-manager';
+import { DecisionNode } from '../../memory/branch-tree-types';
 
 /**
  * 决策记录（兼容 Memo 格式）
@@ -88,6 +94,7 @@ export class MemoCliPlugin implements LoopPlugin {
   private reasoningManager: ReasoningManager; // 新增：推理过程管理器
   private searchEngine?: MemorySearchEngine; // Phase 1: BM25 Semantic Search Engine
   private contextInjector?: MemoryContextInjector; // Phase 5: Context Injector
+  private branchTreeManager: BranchTreeManager; // 🎮 Galgame branch tree manager
 
   /**
    * 构造函数
@@ -105,6 +112,7 @@ export class MemoCliPlugin implements LoopPlugin {
     this.preferencesManager = createPreferencesManager(projectRoot); // 初始化用户偏好
     this.sessionContextManager = createSessionContextManager(projectRoot); // 初始化会话上下文
     this.reasoningManager = createReasoningManager(projectRoot); // 初始化推理过程
+    this.branchTreeManager = createBranchTreeManager(projectRoot); // 🎮 初始化分支树
 
     // Phase 1: Initialize MemorySearchEngine (lazy initialization in initialize())
     try {
@@ -120,11 +128,16 @@ export class MemoCliPlugin implements LoopPlugin {
 
   /**
    * 查找 memo 可执行文件
+   * 优先级：MEMO_CLI_PATH 环境变量 > 项目内 memo > PATH 中的 memo
    */
   private findMemoPath(): string {
-    // 尝试常见路径
+    // 环境变量显式指定优先
+    const envPath = process.env.MEMO_CLI_PATH;
+    if (envPath && existsSync(envPath)) {
+      return envPath;
+    }
+
     const commonPaths = [
-      '/Users/mac/freedomking/memo',
       '/usr/local/bin/memo',
       join(this.projectRoot, 'memo'),
     ];
@@ -140,6 +153,13 @@ export class MemoCliPlugin implements LoopPlugin {
   }
 
   /**
+   * Python 解释器命令（Windows 上通常是 python 而非 python3）
+   */
+  private get pythonCommand(): string {
+    return process.platform === 'win32' ? 'python' : 'python3';
+  }
+
+  /**
    * 调用 memo CLI
    *
    * @param args 命令行参数
@@ -147,9 +167,10 @@ export class MemoCliPlugin implements LoopPlugin {
    */
   private async callMemo(args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-      const memo = spawn('python3', [this.memoPath, ...args], {
+      const memo = spawn(this.pythonCommand, [this.memoPath, ...args], {
         cwd: this.projectRoot,
         env: { ...process.env },
+        shell: process.platform === 'win32',
       });
 
       let output = '';
@@ -895,9 +916,9 @@ export class MemoCliPlugin implements LoopPlugin {
   /**
    * 创建新会话
    */
-  async createSession(projectRoot: string) {
+  async createSession(sessionId?: string) {
     try {
-      return await this.sessionContextManager.createSession(projectRoot);
+      return await this.sessionContextManager.createSession(sessionId);
     } catch (error) {
       console.error(`Failed to create session: ${error}`);
       return '';
@@ -1164,6 +1185,163 @@ export class MemoCliPlugin implements LoopPlugin {
    */
   getSearchEngine(): MemorySearchEngine | undefined {
     return this.searchEngine;
+  }
+
+  // ==================== 🎮 Branch Tree Methods (Galgame) ====================
+
+  /**
+   * 获取分支树管理器（REPL 的 TimeTravelManager 共享同一实例）
+   */
+  getBranchTreeManager(): BranchTreeManager {
+    return this.branchTreeManager;
+  }
+
+  /**
+   * 记录决策点到分支树（选项快照 + 未选项 + 选择理由）
+   * 注意与 recordDecision（外部 memo CLI）区分
+   */
+  async recordBranchDecision(options: RecordDecisionOptions): Promise<DecisionNode | null> {
+    try {
+      return await this.branchTreeManager.recordDecision(options);
+    } catch (error) {
+      console.error(`[Memo] Failed to record decision: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * 设置分支结局
+   */
+  async setBranchOutcome(
+    sessionId: string,
+    nodeId: string,
+    outcome: 'active' | 'succeeded' | 'failed' | 'abandoned',
+    note?: string
+  ): Promise<boolean> {
+    try {
+      return await this.branchTreeManager.setOutcome(sessionId, nodeId, outcome, note);
+    } catch (error) {
+      console.error(`[Memo] Failed to set branch outcome: ${error}`);
+      return false;
+    }
+  }
+
+  /**
+   * 设置会话 flag（galgame 事件标记）
+   */
+  async setSessionFlag(
+    sessionId: string,
+    key: string,
+    value: string,
+    source: 'user' | 'ai' = 'user'
+  ): Promise<void> {
+    try {
+      await this.branchTreeManager.setFlag(sessionId, key, value, source);
+    } catch (error) {
+      console.error(`[Memo] Failed to set flag: ${error}`);
+    }
+  }
+
+  /**
+   * 清除会话 flag
+   */
+  async clearSessionFlag(sessionId: string, key: string): Promise<boolean> {
+    try {
+      return await this.branchTreeManager.clearFlag(sessionId, key);
+    } catch (error) {
+      console.error(`[Memo] Failed to clear flag: ${error}`);
+      return false;
+    }
+  }
+
+  /**
+   * 设置活跃会话（ai.ts 注入管道据此定位当前分支树）
+   */
+  async setActiveBranchSession(sessionId: string): Promise<void> {
+    try {
+      await this.branchTreeManager.setActiveSession(sessionId);
+    } catch (error) {
+      console.error(`[Memo] Failed to set active session: ${error}`);
+    }
+  }
+
+  /**
+   * 获取活跃会话的分支上下文（flags + 前世记忆 + MCTS 推荐统计），注入 AI
+   */
+  async getActiveBranchContext(): Promise<string> {
+    try {
+      const sessionId = await this.branchTreeManager.getActiveSessionId();
+      if (!sessionId) return '';
+
+      const flagContext = await this.branchTreeManager.getFlagContext(sessionId);
+      const abandonedContext = await this.branchTreeManager.getAbandonedBranchContext(sessionId);
+      const mctsContext = await this.branchTreeManager.getRecommendationContext(sessionId);
+      return flagContext + abandonedContext + mctsContext;
+    } catch (error) {
+      console.warn(`[Memo] Failed to get branch context: ${error}`);
+      return '';
+    }
+  }
+
+  /**
+   * 活跃对话回放：把当前活跃会话的消息流（剔除废弃分支）格式化注入 AI。
+   *
+   * 这是"读档后对话真正续上"的关键一环——/load 或 /continue 恢复的
+   * 消息历史通过这里进入后续每一次 AI 请求的上下文。
+   */
+  async getActiveConversationContext(maxMessages: number = 12): Promise<string> {
+    try {
+      const sessionId = await this.branchTreeManager.getActiveSessionId();
+      if (!sessionId) return '';
+
+      const messages = await this.sessionContextManager.getActiveMessagesById(sessionId);
+      // 至少要有一轮完整的问答才有回放价值
+      if (messages.filter((m) => m.role === 'user').length < 1) return '';
+
+      const recent = messages.slice(-maxMessages);
+      const lines = recent.map((m) => {
+        const who = m.role === 'user' ? 'User' : m.role === 'assistant' ? 'Assistant' : 'System';
+        const text = m.content.length > 400 ? m.content.slice(0, 397) + '...' : m.content;
+        return `${who}: ${text.replace(/\n+/g, ' ').trim()}`;
+      });
+
+      const truncatedNote =
+        messages.length > maxMessages ? ` (last ${maxMessages} of ${messages.length})` : '';
+
+      return (
+        `\n\n🕘 CURRENT SESSION CONVERSATION${truncatedNote}:\n` +
+        `The following is the ongoing conversation in this session ` +
+        `(restored/continued context — respond consistently with it):\n` +
+        lines.join('\n') +
+        '\n'
+      );
+    } catch (error) {
+      console.warn(`[Memo] Failed to get conversation context: ${error}`);
+      return '';
+    }
+  }
+
+  /**
+   * 🎲 MCTS 探索推荐（/next 命令）
+   */
+  async getMctsRecommendation(sessionId: string) {
+    try {
+      return await this.branchTreeManager.getRecommendation(sessionId);
+    } catch (error) {
+      console.error(`[Memo] Failed to get recommendation: ${error}`);
+      return null;
+    }
+  }
+
+  /**
+   * 渲染决策树（/tree 命令）
+   */
+  async renderDecisionTree(sessionId: string): Promise<string> {
+    try {
+      return await this.branchTreeManager.renderTree(sessionId);
+    } catch (error) {
+      return `Failed to render tree: ${error}`;
+    }
   }
 
   /**

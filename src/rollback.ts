@@ -86,6 +86,9 @@ export class RollbackManager {
   /**
    * Create restoration point before destructive action
    * Returns commit hash or null if not applicable
+   *
+   * 注意：.memo/.kode（记忆与会话产物）被排除在 checkpoint 之外——
+   * 它们是运行时数据，不应污染用户的提交历史。
    */
   async createRestorePoint(
     actionType: string,
@@ -96,8 +99,11 @@ export class RollbackManager {
     }
 
     try {
-      // Check if there are changes to commit
-      const status = safeGitCommand(['status', '--porcelain'], this.projectRoot);
+      // Check if there are changes to commit (excluding runtime dirs)
+      const status = safeGitCommand(
+        ['status', '--porcelain', '--', ':!.memo', ':!.kode'],
+        this.projectRoot
+      );
 
       if (!status) {
         // No changes, no need for commit
@@ -108,8 +114,8 @@ export class RollbackManager {
       const target = filePath ? filePath : 'all changes';
       const message = `${this.config.commitMessage}: before ${actionType} on ${target}`;
 
-      // Stage all changes
-      safeGitCommand(['add', '-A'], this.projectRoot);
+      // Stage all changes (excluding runtime dirs)
+      safeGitCommand(['add', '-A', '--', ':!.memo', ':!.kode'], this.projectRoot);
 
       // Create commit
       safeGitCommand(['commit', '-m', message], this.projectRoot);
@@ -128,8 +134,14 @@ export class RollbackManager {
 
   /**
    * Rollback to a specific commit
+   *
+   * 注意：默认不再执行 `git clean -fd`——那会连带删除用户未跟踪的文件。
+   * 仅在调用方明确传入 cleanUntracked: true 时才清理。
    */
-  async rollback(commitHash: string): Promise<boolean> {
+  async rollback(
+    commitHash: string,
+    options: { cleanUntracked?: boolean } = {}
+  ): Promise<boolean> {
     if (!this.isGitRepo) {
       console.warn('⚠️ Not a git repository, cannot rollback');
       return false;
@@ -139,13 +151,123 @@ export class RollbackManager {
       // Reset to the commit
       safeGitCommand(['reset', '--hard', commitHash], this.projectRoot);
 
-      // Clean untracked files
-      safeGitCommand(['clean', '-fd'], this.projectRoot);
+      // Clean untracked files (opt-in: destructive to user files)
+      if (options.cleanUntracked) {
+        safeGitCommand(['clean', '-fd'], this.projectRoot);
+      }
 
       return true;
     } catch (error) {
       console.error(`❌ Rollback failed: ${(error as Error).message}`);
       return false;
+    }
+  }
+
+  /**
+   * Check if a commit is a kode-created checkpoint
+   */
+  isKodeCheckpoint(commitHash: string): boolean {
+    if (!this.isGitRepo) return false;
+
+    try {
+      const subject = safeGitCommand(
+        ['log', '-1', '--format=%s', commitHash],
+        this.projectRoot
+      );
+      return subject.startsWith(this.config.commitMessage);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get current HEAD hash (null if not a git repo)
+   */
+  getCurrentHash(): string | null {
+    if (!this.isGitRepo) return null;
+
+    try {
+      return safeGitCommand(['rev-parse', 'HEAD'], this.projectRoot);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Create a git branch (used by time travel to preserve abandoned work)
+   */
+  createBranch(branchName: string, fromHash?: string): boolean {
+    if (!this.isGitRepo) return false;
+
+    try {
+      const args = fromHash
+        ? ['branch', branchName, fromHash]
+        : ['branch', branchName];
+      safeGitCommand(args, this.projectRoot);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Checkout a branch (creates it from a hash if provided)
+   */
+  checkoutBranch(branchName: string, createFromHash?: string): boolean {
+    if (!this.isGitRepo) return false;
+
+    try {
+      if (createFromHash) {
+        safeGitCommand(
+          ['checkout', '-b', branchName, createFromHash],
+          this.projectRoot
+        );
+      } else {
+        safeGitCommand(['checkout', branchName], this.projectRoot);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Commit all pending changes with a message (no-op when clean tree)
+   * 排除 .memo/.kode（与 createRestorePoint 一致）
+   */
+  commitPending(message: string): string | null {
+    if (!this.isGitRepo) return null;
+
+    try {
+      const status = safeGitCommand(
+        ['status', '--porcelain', '--', ':!.memo', ':!.kode'],
+        this.projectRoot
+      );
+      if (!status) {
+        return this.getCurrentHash();
+      }
+
+      safeGitCommand(['add', '-A', '--', ':!.memo', ':!.kode'], this.projectRoot);
+      safeGitCommand(['commit', '-m', message], this.projectRoot);
+      return this.getCurrentHash();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get current branch name (null if detached or not a repo)
+   */
+  getCurrentBranch(): string | null {
+    if (!this.isGitRepo) return null;
+
+    try {
+      return safeGitCommand(
+        ['rev-parse', '--abbrev-ref', 'HEAD'],
+        this.projectRoot
+      );
+    } catch {
+      return null;
     }
   }
 
@@ -287,12 +409,16 @@ export class RollbackManager {
 
   /**
    * Check if there are uncommitted changes
+   * 排除 .memo/.kode（与 checkpoint 语义一致：运行时数据不算"未提交变更"）
    */
   hasUncommittedChanges(): boolean {
     if (!this.isGitRepo) return false;
 
     try {
-      const status = safeGitCommand(['status', '--porcelain'], this.projectRoot);
+      const status = safeGitCommand(
+        ['status', '--porcelain', '--', ':!.memo', ':!.kode'],
+        this.projectRoot
+      );
       return status.length > 0;
     } catch {
       return false;

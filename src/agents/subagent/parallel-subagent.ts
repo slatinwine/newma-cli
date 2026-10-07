@@ -137,8 +137,8 @@ export class ParallelSubAgentCoordinator {
         await this.waitForDependencies(task, results);
       }
 
-      // 执行子任务
-      const result = await this.executeSubTask(task);
+      // 执行子任务（带重试——此前 maxRetries 字段存在但从未被使用）
+      const result = await this.executeWithRetries(task);
       results.push(result);
 
       // 如果失败且不继续，则中断
@@ -159,6 +159,39 @@ export class ParallelSubAgentCoordinator {
 
     // 构建摘要
     return this.buildSummary(results, totalDuration);
+  }
+
+  /**
+   * 带重试的子任务执行（maxRetries 落地）
+   *
+   * 失败后线性退避重试，直到 maxRetries 耗尽或被取消；
+   * 时间线记录每次重试，返回最后一次结果。
+   */
+  private async executeWithRetries(task: SubTask): Promise<SubTaskResult> {
+    let result = await this.executeSubTask(task);
+
+    while (
+      !result.success &&
+      task.retryCount < task.maxRetries &&
+      !this.abortController?.signal.aborted
+    ) {
+      task.retryCount++;
+
+      this.addTimelineEvent({
+        timestamp: new Date(),
+        type: 'task_retry',
+        taskId: task.id,
+        agentType: task.agentType,
+        description: `重试 ${task.retryCount}/${task.maxRetries}: ${task.description}`
+      });
+
+      // 线性退避（500ms × 次数），给瞬时故障（超时/限流）恢复窗口
+      await new Promise((resolve) => setTimeout(resolve, 500 * task.retryCount));
+
+      result = await this.executeSubTask(task);
+    }
+
+    return result;
   }
 
   /**

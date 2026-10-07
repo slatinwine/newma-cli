@@ -4,7 +4,7 @@
  * 经验分析器，从记忆系统中提取可复用的技能
  */
 
-import { readFile } from 'fs/promises';
+import { readFile, readdir } from 'fs/promises';
 import { join } from 'path';
 import { callAI } from '../ai';
 import { NewmaConfig } from '../config';
@@ -148,6 +148,9 @@ export class ExperienceAnalyzer {
 
       // 7. 会话历史
       data.sessions = await this.loadSessionHistory(startDate, endDate);
+
+      // 8. 🎮 分支树结局（决策路线统计）
+      data.branches = await this.loadBranchOutcomes(startDate, endDate);
     } catch (error: any) {
       console.warn(`[Analyzer] ⚠ Some memory data could not be loaded: ${error.message}`);
     }
@@ -236,12 +239,18 @@ ${JSON.stringify(memoryData.reasoning.slice(0, 5), null, 2)}
 ${JSON.stringify(memoryData.decisions.slice(0, 5), null, 2)}
 \`\`\`
 
+### 7. 分支结局 (决策路线统计，攻略生成的原料)
+\`\`\`json
+${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
+\`\`\`
+
 ## 分析要求
 1. 识别重复出现的模式（出现 3 次以上）
 2. 提取最佳实践（成功案例）
 3. 总结常见陷阱和解决方案
-4. 估计每个技能的置信度（0.0-1.0）
-5. 只保留置信度 > ${this.options.confidenceThreshold} 的技能
+4. 从"分支结局"中提取决策策略：哪类技术选型/方案路线在本项目中成功率更高，哪些路线反复失败或被放弃
+5. 估计每个技能的置信度（0.0-1.0）
+6. 只保留置信度 > ${this.options.confidenceThreshold} 的技能
 
 ## 输出格式
 返回 JSON 数组，每个元素包含:
@@ -463,6 +472,76 @@ ${JSON.stringify(memoryData.decisions.slice(0, 5), null, 2)}
     }
   }
 
+  /**
+   * 🎮 加载分支树结局（决策路线的成功/失败/放弃统计，攻略生成的原料）
+   */
+  private async loadBranchOutcomes(startDate: Date, endDate: Date): Promise<any[]> {
+    try {
+      const branchesDir = join(this.memoDir, 'branches');
+      const files = await readdir(branchesDir).catch(() => [] as string[]);
+
+      const outcomes: any[] = [];
+
+      for (const file of files) {
+        if (!file.endsWith('.json') || file === 'active.json') continue;
+
+        try {
+          const content = await readFile(join(branchesDir, file), 'utf-8');
+          const tree = JSON.parse(content);
+
+      for (const node of tree.nodes || []) {
+        const date = new Date(node.createdAt);
+        if (date < startDate || date > endDate) continue;
+        if (node.type === 'save') continue; // 存档点不是决策结局
+
+        const chosen = (node.options || []).find(
+          (o: any) => o.id === node.selectedOptionId
+        );
+
+        // 节点级结局（注意：重访会把 outcome 重置为 active，
+        // 此时历史战绩在选项级 MCTS 统计里——由下方补充采集）
+        if (node.outcome !== 'active') {
+          outcomes.push({
+            session: tree.sessionId,
+            decisionType: node.type,
+            question: node.prompt,
+            chosenOption: chosen?.label ?? '(none)',
+            outcome: node.outcome, // succeeded | failed | abandoned
+            note: node.outcomeNote ?? '',
+            createdAt: node.createdAt,
+          });
+        }
+
+        // 选项级 MCTS 统计（同一决策点各路线的 N/W/Q，含被重访覆盖的历史）
+        const withStats = (node.options || []).filter(
+          (o: any) => o.stats && o.stats.visits > 0
+        );
+        if (withStats.length > 0) {
+          outcomes.push({
+            session: tree.sessionId,
+            decisionType: node.type,
+            question: node.prompt,
+            chosenOption: withStats
+              .map((o: any) => `${o.label}: ${o.stats.visits}x Q=${(o.stats.value / o.stats.visits).toFixed(2)}`)
+              .join(' | '),
+            outcome: node.outcome === 'active' ? 'in-progress (per-option stats)' : `${node.outcome} (per-option stats)`,
+            note: `presented ${node.presentedCount ?? 1}x`,
+            createdAt: node.createdAt,
+          });
+        }
+      }
+        } catch {
+          // 单个分支树文件损坏跳过
+        }
+      }
+
+      return outcomes;
+    } catch (error) {
+      console.warn('[Analyzer] Could not load branch outcomes');
+      return [];
+    }
+  }
+
   // ========== 辅助方法 ==========
 
   private getDataSourcesCount(data: MemoryDataSummary): number {
@@ -474,6 +553,7 @@ ${JSON.stringify(memoryData.decisions.slice(0, 5), null, 2)}
     if (data.reasoning.length > 0) count++;
     if (data.decisions.length > 0) count++;
     if (data.sessions.length > 0) count++;
+    if (data.branches && data.branches.length > 0) count++;
     return count;
   }
 

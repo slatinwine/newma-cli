@@ -6,6 +6,7 @@
  */
 
 import path from 'path';
+import fs from 'fs/promises';
 import { SessionManager } from '../../session';
 import {
   LoopSession,
@@ -181,17 +182,55 @@ export class LoopSessionManagerAdapter implements LoopSession {
 
   /**
    * 保存状态到持久存储
+   *
+   * 🎮 落地原先的 TODO：持久化到 .memo/loop-state/<sessionId>.json
+   * （存档=指针/状态元组，不拷贝内容；AbortController 不可序列化被剥离）
    */
   async saveState(): Promise<void> {
-    // TODO: 实现持久化存储
-    // 可以保存到文件系统或数据库
+    try {
+      const state = this.getState();
+      const serializable = {
+        ...state,
+        // 不可序列化字段剥离
+        currentAbortController: undefined,
+        loopState: {
+          ...state.loopState,
+          history: state.loopState.history.slice(-100),
+        },
+        savedAt: new Date().toISOString(),
+      };
+
+      const dir = path.join(this.projectRoot, '.memo', 'loop-state');
+      await fs.mkdir(dir, { recursive: true });
+      const file = path.join(dir, `${this.sessionId.replace(/[^a-zA-Z0-9._-]/g, '_')}.json`);
+      await fs.writeFile(file, JSON.stringify(serializable, null, 2), 'utf-8');
+    } catch (error) {
+      // 状态保存失败不阻断主流程
+      console.warn(`[LoopSession] saveState failed: ${(error as Error).message}`);
+    }
   }
 
   /**
    * 加载状态从持久存储
    */
   async loadState(): Promise<void> {
-    // TODO: 实现从持久存储加载
+    try {
+      const dir = path.join(this.projectRoot, '.memo', 'loop-state');
+      const file = path.join(dir, `${this.sessionId.replace(/[^a-zA-Z0-9._-]/g, '_')}.json`);
+      const content = await fs.readFile(file, 'utf-8');
+      const saved = JSON.parse(content) as LoopSessionState & { savedAt?: string };
+
+      this.updateState({
+        currentMode: saved.currentMode,
+        loopState: saved.loopState,
+        currentPlan: saved.currentPlan,
+        config: saved.config,
+        permissions: saved.permissions,
+      });
+      this.iterationCount = saved.iterationCount ?? this.iterationCount;
+    } catch {
+      // 无存档或读取失败：保持当前状态（新会话的正常路径）
+    }
   }
 
   /**
