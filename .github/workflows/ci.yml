@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build（ui 先行解决 ink-repl 产物依赖，postbuild 补 ESM 后缀）
+        run: npm run build
+
+      - name: Smoke test — dist 必须无需 loader 直接运行
+        run: node dist/cli.js --version
+
+      - name: Offline tests（存档/分支树/MCTS/修复项）
+        run: npx jest tests/ --coverage=false
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type check（ui 先构建产物，消除对 dist/ui 的前向依赖）
+        run: |
+          npx tsc --project tsconfig.ui.json
+          npx tsc --noEmit

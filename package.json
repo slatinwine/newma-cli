@@ -10,10 +10,10 @@
     "newma-create-plugin": "./bin/newma-create-plugin.ts"
   },
   "scripts": {
-    "build": "tsc && tsc --project tsconfig.ui.json && npm run copy:prompts && npm run copy:templates",
+    "build": "tsc --project tsconfig.ui.json && tsc && node scripts/fix-dist-imports.mjs && npm run copy:prompts && npm run copy:templates",
     "build:bun": "bun run build.ts",
-    "copy:prompts": "mkdir -p dist/prompts && cp prompts/*.md dist/prompts/ 2>/dev/null || true",
-    "copy:templates": "mkdir -p dist/skills-creator/templates && cp src/skills-creator/templates/*.ts dist/skills-creator/templates/ 2>/dev/null || true",
+    "copy:prompts": "node -e \"const fs=require('fs');fs.mkdirSync('dist/prompts',{recursive:true});for(const f of fs.readdirSync('prompts'))if(f.endsWith('.md'))fs.copyFileSync('prompts/'+f,'dist/prompts/'+f)\"",
+    "copy:templates": "node -e \"const fs=require('fs');fs.mkdirSync('dist/skills-creator/templates',{recursive:true});const s='src/skills-creator/templates';if(fs.existsSync(s))for(const f of fs.readdirSync(s))fs.copyFileSync(s+'/'+f,'dist/skills-creator/templates/'+f)\"",
     "dev": "ts-node src/cli.ts",
     "dev:bun": "bun src/cli.ts",
     "daemon": "ts-node src/daemon.ts",

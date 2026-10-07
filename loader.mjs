@@ -1,29 +1,32 @@
 // Node.js ESM loader that auto-resolves imports without .js extension
 // Usage: node --loader ./loader.mjs dist/cli.js
-import { pathToFileURL } from 'node:url';
+//
+// Windows 兼容：用 fileURLToPath/pathToFileURL 处理盘符路径，
+// 不再手拼 URL pathname（原写法在 Windows 上产生 /D:/... 坏路径）。
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 
 export function resolve(specifier, context, nextResolve) {
-  if (!specifier.startsWith('.') && !specifier.startsWith('/')) {
+  if (!specifier.startsWith('.')) {
     return nextResolve(specifier, context);
   }
-  if (specifier.endsWith('.js') || specifier.endsWith('.mjs') || specifier.endsWith('.json')) {
+  if (/\.(js|mjs|cjs|json)$/.test(specifier)) {
     return nextResolve(specifier, context);
   }
 
   const parentDir = context.parentURL
-    ? new URL(context.parentURL).pathname.replace(/\/[^/]*$/, '')
+    ? path.dirname(fileURLToPath(context.parentURL))
     : process.cwd();
 
-  const asFile = parentDir + '/' + specifier + '.js';
+  const asFile = path.join(parentDir, specifier + '.js');
   if (fs.existsSync(asFile)) {
-    return nextResolve(specifier + '.js', context);
+    return nextResolve(pathToFileURL(asFile).href, context);
   }
 
-  const asIndex = parentDir + '/' + specifier + '/index.js';
+  const asIndex = path.join(parentDir, specifier, 'index.js');
   if (fs.existsSync(asIndex)) {
-    return nextResolve(specifier + '/index.js', context);
+    return nextResolve(pathToFileURL(asIndex).href, context);
   }
 
   return nextResolve(specifier, context);
