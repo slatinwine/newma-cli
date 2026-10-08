@@ -8,6 +8,7 @@ import { ReasoningTracker } from './ultrathink/tracker';
 import { TaskTracker } from './task-tracker/tracker';
 import { TaskStorage } from './task-tracker/storage';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import {
   SessionContextManager,
   ExecutionHistoryManager,
@@ -514,8 +515,19 @@ export class SessionManager {
     `);
 
     console.log(asciiArt);
+    // 版本号从包根的 package.json 读取（与 --version 同源；
+    // 本模块位于 dist/ 或 src/，上一级即包根）
+    let version = '';
+    try {
+      const pkgPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json');
+      if (fs.existsSync(pkgPath)) {
+        version = ' v' + JSON.parse(fs.readFileSync(pkgPath, 'utf-8')).version;
+      }
+    } catch {
+      // 版本号仅用于展示，失败不打扰
+    }
     console.log(chalk.cyan('╔══════════════════════════════════════════════════════════════╗'));
-    console.log(chalk.cyan('║') + chalk.white.bold('         Newma (牛码) AI Assistant - Interactive Mode     ') + chalk.cyan('║'));
+    console.log(chalk.cyan('║') + chalk.white.bold(`        Newma (牛码) AI Assistant${version} - Interactive Mode`) + chalk.cyan('║'));
     console.log(chalk.cyan('╚══════════════════════════════════════════════════════════════╝'));
     console.log(chalk.gray(`\nSession: ${this.sessionId}`));
     console.log(chalk.gray(`Project: ${path.basename(this.projectRoot)}\n`));

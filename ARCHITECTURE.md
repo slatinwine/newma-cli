@@ -4,9 +4,12 @@
 
 Newma (牛码) 是一个企业级的 AI 驱动多智能体代码助手，基于 TypeScript 构建，采用 `plan → search → execute → verify` 循环模式。
 
-- **版本**: 3.4.0
+- **版本**: 3.5.1
 - **运行环境**: Node.js 22+
-- **默认 AI 提供商**: Zhipu AI GLM-4.7 (OpenAI 兼容格式)
+- **默认 AI 提供商**: 任意 OpenAI 兼容服务（默认智谱 GLM）
+
+> ⚠️ 本文档主体写于 3.4 时代，核心分层仍然有效；3.5 新增的
+> 会话管理架构见下方专节，以 README 与代码为准。
 
 ## 目录结构
 
@@ -28,7 +31,35 @@ Newma (牛码) 是一个企业级的 AI 驱动多智能体代码助手，基于 
 └── templates/              # 模板文件
 ```
 
-## 核心架构分层
+## 会话管理架构（v3.5+，当前架构）
+
+3.5 版本将会话管理重构为"游戏存档 + galgame 分支树 + MCTS 探索"三层：
+
+```
+SavePoint (.memo/saves/index.json)
+  = { gitHash, messageId, taskId, flags } 指针元组
+  —— 不拷贝内容，把四套已持久化的状态原子绑定
+
+BranchTree (.memo/branches/<sessionId>.json)
+  DecisionNode { prompt, options[](含未选项), selectedOptionId,
+                 outcome: succeeded|failed|abandoned, parentDecisionId }
+  —— plan-choice / replan / back-to / save 均记录为决策节点；
+     MCTS 反传：结局奖励沿父链上溯（succeeded=1.0, abandoned=0.25, failed=0）
+
+TimeTravel (src/time-travel.ts)
+  /back-to = git 保全分支(kode/branch-*) + 检出分支(kode/rewind-*)
+           + 会话消息废弃区间 + 决策树 abandonSubsequent
+  —— 无损：旧分支保留，结论以 PRIOR BRANCH MEMORY 注入新分支
+
+闭环：分支结局 → precipitation 'branches' 证据源 → 跨会话先验回流
+     （getCrossSessionPriors 把历史胜率变成新决策的 PUCT 先验）
+```
+
+关键文件：`src/memory/save-point-*` `src/memory/branch-tree-*`
+`src/time-travel.ts` `src/logger.ts`；测试：`tests/save-branch-system.test.ts`
+`tests/optimization-fixes.test.ts` `tests/repl-e2e.test.ts`。
+
+## 核心架构分层（3.4 时代遗留，主体仍有效）
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

@@ -447,6 +447,18 @@ program
         const error = handleError(e);
         console.error(chalk.red('❌ 调用 LLM 失败:'), error.getUserMessage());
 
+        // 认证失败：给出可操作的设置指引（而不是让用户猜）
+        const authFailed = /401|403|令牌|token|api key|unauthorized/i.test(
+          error.getUserMessage() + (e instanceof Error ? e.message : '')
+        );
+        if (authFailed) {
+          console.log(chalk.yellow('\n🔑 API 认证失败。设置方法（二选一）:'));
+          console.log(chalk.gray('  1. 环境变量:  export OPENAI_API_KEY=你的key'));
+          console.log(chalk.gray('  2. .env 文件: 在项目根目录创建 .env 写入 OPENAI_API_KEY=你的key'));
+          console.log(chalk.gray('  默认模型为智谱 GLM，key 从 https://open.bigmodel.cn 获取；'));
+          console.log(chalk.gray('  其他 OpenAI 兼容服务用 OPENAI_BASE_URL 指定端点。'));
+        }
+
         // 尝试重试
         if (isRetryable(error)) {
           console.log(chalk.yellow('\n🔄 尝试重试...'));

@@ -17,6 +17,7 @@ import {
   ContextUpdateResult,
 } from './types';
 import { scanDirectory } from '../scanner';
+import { logger } from '../logger';
 
 /**
  * 项目上下文管理器
@@ -64,7 +65,7 @@ export class ContextManager {
       const content = await fs.readFile(this.contextFile, 'utf-8');
       this.currentContext = JSON.parse(content);
     } catch (error) {
-      console.error(`Failed to load context: ${error}`);
+      logger.debug(`Failed to load context: ${error}`);
       this.currentContext = null;
     }
   }
@@ -74,11 +75,13 @@ export class ContextManager {
    */
   private async saveContext(context: ProjectContext): Promise<void> {
     try {
+      // 单次命令模式可能未经过 initialize()——写前确保目录存在
+      await fs.mkdir(this.cacheDir, { recursive: true });
       const content = JSON.stringify(context, null, 2);
       await fs.writeFile(this.contextFile, content, 'utf-8');
       this.currentContext = context;
     } catch (error) {
-      console.error(`Failed to save context: ${error}`);
+      logger.warn(`Failed to save context: ${error}`);
     }
   }
 
@@ -340,7 +343,7 @@ export class ContextManager {
       result.updated = true;
       result.duration = Date.now() - startTime;
 
-      console.log(`✓ Context updated in ${result.duration}ms`);
+      logger.debug(`Context updated in ${result.duration}ms`);
       return newContext;
     } catch (error) {
       console.error(`Failed to update context: ${error}`);
