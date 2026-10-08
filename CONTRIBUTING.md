@@ -9,8 +9,7 @@ to build, test and contribute changes.
 git clone <repo>
 cd newma-cli
 npm install
-npm run build
-npm test
+npm run verify   # 构建 + 全量测试 + 冒烟验收（一条命令）
 ```
 
 Requirements: Node.js ≥ 22, Git. A Bun install is optional for the
@@ -41,6 +40,9 @@ archive/        retired demo/scratch files (not part of the product)
   `docs:`, `build:`). Keep the subject ≤ 72 chars; details in the body.
 - **Types**: `npm run build` runs `tsc` with `strict` — zero new errors is
   the bar. CI enforces this on Ubuntu and Windows.
+- **Gate**: `npm run verify` 必须全绿才能提交——它跑完整构建、全部
+  离线测试（含 REPL 黑盒 E2E）和发布冒烟（版本一致、main/bin 入口、
+  tarball 内容检查）。
 - **Docs**: when adding a user-facing command, update `README.md`, the REPL
   `/help` text and the tab-completion list in `src/completion.ts`, and add
   an entry under "Unreleased" in `CHANGELOG.md`.
@@ -49,9 +51,7 @@ archive/        retired demo/scratch files (not part of the product)
 
 ## Release checklist
 
-1. Update `CHANGELOG.md` (move Unreleased → version, date).
-2. Bump `version` in `package.json` (single source of truth — `--version`
-   reads from it).
-3. `npm run build && npm test`, then `npm pack --dry-run` and inspect the
-   file list.
-4. Tag `v<version>` and `npm publish`.
+1. Update `CHANGELOG.md`（Unreleased → 版本号 + 日期）。
+2. 升 `package.json` 的 `version`（单一来源，`--version` 读它）。
+3. `npm run verify`（构建 + 测试 + 冒烟 + pack 检查）必须全绿。
+4. 打 tag `v<version>` 并 `npm publish`。

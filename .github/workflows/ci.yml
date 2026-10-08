@@ -38,6 +38,9 @@ jobs:
       - name: Package smoke — 发布内容物检查
         run: npm pack --dry-run
 
+      - name: Entry-point smoke — main/bin 入口与版本一致性
+        run: node scripts/verify-smoke.mjs
+
   typecheck:
     runs-on: ubuntu-latest
     steps:

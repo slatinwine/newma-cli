@@ -7,8 +7,8 @@
 
 import { Command } from 'commander';
 import * as path from 'path';
-import { SkillsCreator } from '../src/skills-creator/index';
-import { getDefaultConfig } from '../src/config';
+import { SkillsCreator } from '../skills-creator/index';
+import { getDefaultConfig } from '../config';
 import chalk from 'chalk';
 
 const program = new Command();
@@ -16,7 +16,7 @@ const program = new Command();
 program
   .name('kode-create-plugin')
   .description('Create Kode plugins from requirements or chat history')
-  .version('1.0.0');
+  .version(process.env.npm_package_version ?? '');
 
 program
   .command('interactive')
@@ -119,7 +119,7 @@ program
   .argument('<dir>', 'Plugin directory')
   .action(async (dir) => {
     try {
-      const { PluginPackager } = await import('../src/skills-creator/packager');
+      const { PluginPackager } = await import('../skills-creator/packager');
       const packager = new PluginPackager();
 
       const validation = await packager.validate(dir);
@@ -146,7 +146,7 @@ program
   .argument('<dir>', 'Plugin directory')
   .action(async (dir) => {
     try {
-      const { PluginPackager } = await import('../src/skills-creator/packager');
+      const { PluginPackager } = await import('../skills-creator/packager');
       const packager = new PluginPackager();
 
       console.log(chalk.cyan('🧪 Running tests...\n'));

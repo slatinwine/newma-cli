@@ -7,11 +7,10 @@
   "bin": {
     "newma": "./dist/cli.js",
     "牛码": "./dist/cli.js",
-    "newma-create-plugin": "./bin/newma-create-plugin.ts"
+    "newma-create-plugin": "./dist/bin/create-plugin.js"
   },
   "files": [
     "dist",
-    "bin",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -38,7 +37,8 @@
     "benchmark:task-tracker": "node bench/benchmark-task-tracker-v2.ts",
     "benchmark:consolidation": "./bench/benchmark-consolidation.sh",
     "benchmark": "npm run benchmark:task-tracker && npm run benchmark:consolidation",
-    "test:consolidation": "./tests/consolidation/test-consolidation.sh && ./tests/consolidation/test-repl-features.sh"
+    "test:consolidation": "./tests/consolidation/test-consolidation.sh && ./tests/consolidation/test-repl-features.sh",
+    "verify": "npm run build && npm test && node scripts/verify-smoke.mjs"
   },
   "author": "lijianyi <lijianyi04@126.com>",
   "license": "MIT",
