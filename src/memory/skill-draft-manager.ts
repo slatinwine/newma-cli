@@ -7,6 +7,7 @@
 import { readdir, readFile, stat, writeFile, unlink, rename, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { logger } from '../logger';
 import {
   DraftSkill,
   DraftStatus,
@@ -51,7 +52,7 @@ export class SkillDraftManager {
    * 初始化目录结构
    */
   async initialize(): Promise<void> {
-    console.log('[DraftManager] Initializing directory structure...');
+    logger.info('[DraftManager] Initializing directory structure...');
 
     const dirs = [
       this.options.draftsDir,
@@ -62,11 +63,11 @@ export class SkillDraftManager {
     for (const dir of dirs) {
       if (!existsSync(dir)) {
         await mkdir(dir, { recursive: true });
-        console.log(`[DraftManager] ✓ Created: ${dir}`);
+        logger.info(`[DraftManager] ✓ Created: ${dir}`);
       }
     }
 
-    console.log('[DraftManager] ✓ Directory structure ready');
+    logger.info('[DraftManager] ✓ Directory structure ready');
   }
 
   /**
@@ -85,7 +86,7 @@ export class SkillDraftManager {
           drafts.push(draft);
         }
       } catch (error: any) {
-        console.warn(`[DraftManager] Failed to load draft ${dir}: ${error.message}`);
+        logger.warn(`[DraftManager] Failed to load draft ${dir}: ${error.message}`);
       }
     }
 
@@ -104,7 +105,7 @@ export class SkillDraftManager {
       throw new Error(`Draft not found: ${draftId}`);
     }
 
-    console.log(`[DraftManager] Approving draft: ${draft.suggestion.name}`);
+    logger.info(`[DraftManager] Approving draft: ${draft.suggestion.name}`);
 
     // 移动到 approved 目录
     const sourceDir = join(this.options.draftsDir, draftId);
@@ -115,7 +116,7 @@ export class SkillDraftManager {
     // 更新状态
     await this.updateDraftStatus(targetDir, 'approved', reviewNote);
 
-    console.log(`[DraftManager] ✓ Approved: ${draft.suggestion.name}`);
+    logger.info(`[DraftManager] ✓ Approved: ${draft.suggestion.name}`);
   }
 
   /**
@@ -127,7 +128,7 @@ export class SkillDraftManager {
       throw new Error(`Draft not found: ${draftId}`);
     }
 
-    console.log(`[DraftManager] Rejecting draft: ${draft.suggestion.name}`);
+    logger.info(`[DraftManager] Rejecting draft: ${draft.suggestion.name}`);
 
     // 移动到 rejected 目录
     const sourceDir = join(this.options.draftsDir, draftId);
@@ -138,7 +139,7 @@ export class SkillDraftManager {
     // 更新状态
     await this.updateDraftStatus(targetDir, 'rejected', reviewNote);
 
-    console.log(`[DraftManager] ✓ Rejected: ${draft.suggestion.name}`);
+    logger.info(`[DraftManager] ✓ Rejected: ${draft.suggestion.name}`);
   }
 
   /**
@@ -150,7 +151,7 @@ export class SkillDraftManager {
       throw new Error(`Draft not found: ${draftId}`);
     }
 
-    console.log(`[DraftManager] Deleting draft: ${draft.suggestion.name}`);
+    logger.info(`[DraftManager] Deleting draft: ${draft.suggestion.name}`);
 
     // 删除整个目录
     const { rmdir } = require('fs/promises');
@@ -158,9 +159,9 @@ export class SkillDraftManager {
 
     try {
       await rm(join(this.options.draftsDir, draftId), { recursive: true, force: true });
-      console.log(`[DraftManager] ✓ Deleted: ${draft.suggestion.name}`);
+      logger.info(`[DraftManager] ✓ Deleted: ${draft.suggestion.name}`);
     } catch (error: any) {
-      console.error(`[DraftManager] Failed to delete: ${error.message}`);
+      logger.error(`[DraftManager] Failed to delete: ${error.message}`);
       throw error;
     }
   }
@@ -187,7 +188,7 @@ export class SkillDraftManager {
    * 清理过期草稿
    */
   async cleanupOldDrafts(): Promise<number> {
-    console.log('[DraftManager] Cleaning up old drafts...');
+    logger.info('[DraftManager] Cleaning up old drafts...');
 
     const drafts = await this.listDrafts();
     const now = new Date();
@@ -201,12 +202,12 @@ export class SkillDraftManager {
           await this.delete(draft.id);
           cleaned++;
         } catch (error: any) {
-          console.warn(`[DraftManager] Failed to cleanup ${draft.id}: ${error.message}`);
+          logger.warn(`[DraftManager] Failed to cleanup ${draft.id}: ${error.message}`);
         }
       }
     }
 
-    console.log(`[DraftManager] ✓ Cleaned up ${cleaned} old drafts`);
+    logger.info(`[DraftManager] ✓ Cleaned up ${cleaned} old drafts`);
 
     return cleaned;
   }

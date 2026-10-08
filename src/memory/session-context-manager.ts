@@ -8,6 +8,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { logger } from '../logger';
 import {
   SessionContextStorage,
   SessionRecord,
@@ -57,6 +58,13 @@ export class SessionContextManager {
   private currentSession: SessionRecord | null = null;
   private sessionIndex: SessionIndex;
   private useShardedStorage: boolean = true;
+  /**
+   * 索引是派生数据（计数/主题），不必随每条消息同步落盘——
+   * 标脏 + 防抖合并（消息文件本身仍逐条持久化，崩溃不丢消息）
+   */
+  private indexDirty = false;
+  private indexFlushTimer: NodeJS.Timeout | null = null;
+  private static readonly INDEX_FLUSH_DELAY_MS = 2000;
 
   constructor(projectRoot: string) {
     this.projectRoot = projectRoot;
@@ -96,7 +104,7 @@ export class SessionContextManager {
 
     // Check if we need to migrate from old storage
     if (existsSync(this.storageFile) && !existsSync(this.indexFile)) {
-      console.log('[SessionContext] Migrating to sharded storage...');
+      logger.debug('[SessionContext] Migrating to sharded storage...');
       await this.migrateToShardedStorage();
     }
 
@@ -116,7 +124,7 @@ export class SessionContextManager {
       const content = await fs.readFile(this.storageFile, 'utf-8');
       const oldStorage: SessionContextStorage = JSON.parse(content);
 
-      console.log(`[SessionContext] Migrating ${oldStorage.sessions.length} sessions...`);
+      logger.debug(`[SessionContext] Migrating ${oldStorage.sessions.length} sessions...`);
 
       // Migrate each session to a separate file
       for (const session of oldStorage.sessions) {
@@ -152,9 +160,9 @@ export class SessionContextManager {
       const backupFile = this.storageFile + '.backup';
       await fs.rename(this.storageFile, backupFile);
 
-      console.log('[SessionContext] Migration complete. Old file backed up to:', backupFile);
+      logger.debug('[SessionContext] Migration complete. Old file backed up to:', backupFile);
     } catch (error) {
-      console.error('[SessionContext] Migration failed:', error);
+      logger.error('[SessionContext] Migration failed:', error);
       // Continue with old storage if migration fails
       this.useShardedStorage = false;
     }
@@ -179,7 +187,7 @@ export class SessionContextManager {
       );
 
     } catch (error) {
-      console.error(`[SessionContext] Failed to load index: ${error}`);
+      logger.error(`[SessionContext] Failed to load index: ${error}`);
     }
   }
 
@@ -192,7 +200,7 @@ export class SessionContextManager {
       const content = JSON.stringify(this.sessionIndex, null, 2);
       await fs.writeFile(this.indexFile, content, 'utf-8');
     } catch (error) {
-      console.error(`[SessionContext] Failed to save index: ${error}`);
+      logger.error(`[SessionContext] Failed to save index: ${error}`);
     }
   }
 
@@ -225,7 +233,7 @@ export class SessionContextManager {
       const content = JSON.stringify(session, null, 2);
       await fs.writeFile(filePath, content, 'utf-8');
     } catch (error) {
-      console.error(`[SessionContext] Failed to save session file: ${error}`);
+      logger.error(`[SessionContext] Failed to save session file: ${error}`);
     }
   }
 
@@ -261,7 +269,7 @@ export class SessionContextManager {
       const content = await fs.readFile(filePath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      console.error(`[SessionContext] Failed to load session file: ${error}`);
+      logger.error(`[SessionContext] Failed to load session file: ${error}`);
       return null;
     }
   }
@@ -303,7 +311,7 @@ export class SessionContextManager {
       const content = await fs.readFile(this.storageFile, 'utf-8');
       this.storage = JSON.parse(content);
     } catch (error) {
-      console.error(`[SessionContext] Failed to load: ${error}`);
+      logger.error(`[SessionContext] Failed to load: ${error}`);
     }
   }
 
@@ -316,7 +324,7 @@ export class SessionContextManager {
       const content = JSON.stringify(this.storage, null, 2);
       await fs.writeFile(this.storageFile, content, 'utf-8');
     } catch (error) {
-      console.error(`[SessionContext] Failed to save: ${error}`);
+      logger.error(`[SessionContext] Failed to save: ${error}`);
     }
   }
 
@@ -392,7 +400,7 @@ export class SessionContextManager {
     parentMessageId?: string
   ): Promise<void> {
     if (!this.currentSession) {
-      console.warn('[SessionContext] No active session');
+      logger.warn('[SessionContext] No active session');
       return;
     }
 
@@ -419,10 +427,38 @@ export class SessionContextManager {
         indexEntry.keyDecisions = this.currentSession.contextVector?.topics || [];
       }
       await this.saveSessionToFile(this.currentSession);
-      await this.saveSessionIndex();
+      // 热路径：索引标脏防抖（见 flushSessionIndex）
+      this.scheduleIndexFlush();
     } else {
       await this.saveStorage();
     }
+  }
+
+  /**
+   * 索引防抖：合并短时间内的多次标脏，一次落盘
+   */
+  private scheduleIndexFlush(): void {
+    this.indexDirty = true;
+    if (this.indexFlushTimer) return;
+    this.indexFlushTimer = setTimeout(() => {
+      this.indexFlushTimer = null;
+      void this.flushSessionIndex();
+    }, SessionContextManager.INDEX_FLUSH_DELAY_MS);
+    // 不阻止进程退出
+    this.indexFlushTimer.unref?.();
+  }
+
+  /**
+   * 立即落盘脏索引（读路径与退出前调用，保证对外一致）
+   */
+  async flushSessionIndex(): Promise<void> {
+    if (this.indexFlushTimer) {
+      clearTimeout(this.indexFlushTimer);
+      this.indexFlushTimer = null;
+    }
+    if (!this.indexDirty) return;
+    this.indexDirty = false;
+    await this.saveSessionIndex();
   }
 
   /**
@@ -592,6 +628,9 @@ export class SessionContextManager {
       return;
     }
 
+    // 退出前把防抖中的索引落盘
+    await this.flushSessionIndex();
+
     this.currentSession.endTime = new Date().toISOString();
     this.currentSession.status = 'completed';
 
@@ -654,6 +693,7 @@ export class SessionContextManager {
    * 搜索相关上下文
    */
   async searchContext(options: ContextSearchOptions): Promise<ContextSearchResult[]> {
+    await this.flushSessionIndex();
     const results: ContextSearchResult[] = [];
     const limit = options.limit || 10;
 
@@ -840,6 +880,7 @@ export class SessionContextManager {
    * 获取最近的会话
    */
   async getRecentSessions(limit = 10): Promise<SessionRecord[]> {
+    await this.flushSessionIndex();
     let sessions: SessionRecord[] = [];
 
     if (this.useShardedStorage) {
@@ -871,6 +912,7 @@ export class SessionContextManager {
    * Get session by ID
    */
   async getSession(sessionId: string): Promise<SessionRecord | null> {
+    await this.flushSessionIndex();
     if (this.useShardedStorage) {
       return await this.loadSessionFromFile(sessionId);
     } else {
@@ -882,6 +924,7 @@ export class SessionContextManager {
    * Get all sessions (used by search engine)
    */
   async getAllSessions(): Promise<SessionRecord[]> {
+    await this.flushSessionIndex();
     if (this.useShardedStorage) {
       const sessions: SessionRecord[] = [];
 

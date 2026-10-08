@@ -16,6 +16,7 @@ import {
   ErrorCategory,
   ErrorSeverity,
 } from './error-types';
+import { logger } from '../logger';
 
 /**
  * 错误记忆管理器
@@ -51,7 +52,7 @@ export class ErrorMemoryManager {
     // 加载错误模式
     await this.loadPatterns();
 
-    console.log(`[ErrorMemory] Loaded ${this.errors.length} error records`);
+    logger.info(`[ErrorMemory] Loaded ${this.errors.length} error records`);
   }
 
   /**
@@ -67,7 +68,7 @@ export class ErrorMemoryManager {
       const content = await fs.readFile(this.errorsFile, 'utf-8');
       this.errors = JSON.parse(content);
     } catch (error) {
-      console.error(`[ErrorMemory] Failed to load errors: ${error}`);
+      logger.error(`[ErrorMemory] Failed to load errors: ${error}`);
       this.errors = [];
     }
   }
@@ -80,7 +81,7 @@ export class ErrorMemoryManager {
       const content = JSON.stringify(this.errors, null, 2);
       await fs.writeFile(this.errorsFile, content, 'utf-8');
     } catch (error) {
-      console.error(`[ErrorMemory] Failed to save errors: ${error}`);
+      logger.error(`[ErrorMemory] Failed to save errors: ${error}`);
     }
   }
 
@@ -101,7 +102,7 @@ export class ErrorMemoryManager {
         this.patterns.set(pattern.errorType, pattern);
       }
     } catch (error) {
-      console.error(`[ErrorMemory] Failed to load patterns: ${error}`);
+      logger.error(`[ErrorMemory] Failed to load patterns: ${error}`);
     }
   }
 
@@ -114,7 +115,7 @@ export class ErrorMemoryManager {
       const content = JSON.stringify(patternsArray, null, 2);
       await fs.writeFile(this.patternsFile, content, 'utf-8');
     } catch (error) {
-      console.error(`[ErrorMemory] Failed to save patterns: ${error}`);
+      logger.error(`[ErrorMemory] Failed to save patterns: ${error}`);
     }
   }
 
@@ -219,7 +220,7 @@ export class ErrorMemoryManager {
     await this.saveErrors();
     await this.updatePattern(errorRecord);
 
-    console.log(`[ErrorMemory] Recorded error: ${error.errorType}`);
+    logger.info(`[ErrorMemory] Recorded error: ${error.errorType}`);
     return errorRecord.id;
   }
 
@@ -239,7 +240,7 @@ export class ErrorMemoryManager {
     const error = this.errors.find(e => e.id === errorId);
 
     if (!error) {
-      console.warn(`[ErrorMemory] Error not found: ${errorId}`);
+      logger.warn(`[ErrorMemory] Error not found: ${errorId}`);
       return;
     }
 
@@ -262,7 +263,7 @@ export class ErrorMemoryManager {
     await this.saveErrors();
     await this.updatePattern(error);
 
-    console.log(`[ErrorMemory] Recorded solution for: ${error.errorType}`);
+    logger.info(`[ErrorMemory] Recorded solution for: ${error.errorType}`);
   }
 
   /**
@@ -471,7 +472,7 @@ export class ErrorMemoryManager {
     await this.saveErrors();
     await this.updatePattern(error);
 
-    console.log(`[ErrorMemory] Solution ${success ? 'verified' : 'failed'} for: ${error.errorType}`);
+    logger.info(`[ErrorMemory] Solution ${success ? 'verified' : 'failed'} for: ${error.errorType}`);
   }
 
   /**

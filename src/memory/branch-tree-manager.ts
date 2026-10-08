@@ -772,9 +772,7 @@ export class BranchTreeManager {
   async renderTree(sessionId: string): Promise<string> {
     const tree = await this.getTree(sessionId);
 
-    if (tree.nodes.length === 0) {
-      return 'No decisions recorded yet in this session.';
-    }
+
 
     // 建父子索引
     const byId = new Map(tree.nodes.map((n) => [n.id, n]));
@@ -792,6 +790,10 @@ export class BranchTreeManager {
     }
 
     const lines: string[] = [];
+
+    if (tree.nodes.length === 0) {
+      lines.push('No decisions recorded yet in this session.');
+    }
     const outcomeIcon: Record<BranchOutcome, string> = {
       active: '▶',
       succeeded: '✓',

@@ -7,6 +7,7 @@
 import { DreamConsolidator, DreamScheduler } from './dreamConsolidator';
 import { PrecipitationCoordinator } from './precipitation-coordinator';
 import { NewmaConfig } from '../config';
+import { logger } from '../logger';
 
 /**
  * 增强的沉淀协调器（集成 Dream 系统）
@@ -35,7 +36,7 @@ export class EnhancedPrecipitationCoordinator extends PrecipitationCoordinator {
     this.dreamConsolidator = new DreamConsolidator(
       projectRoot,
       {
-        enabled: dreamConfig.enabled !== false,
+        enabled: dreamConfig.enabled === true, // 默认关闭（opt-in）
         minHours: dreamConfig.minHours || 24,
         minSessions: dreamConfig.minSessions || 5,
         maxTurns: dreamConfig.maxTurns || 30,
@@ -45,7 +46,7 @@ export class EnhancedPrecipitationCoordinator extends PrecipitationCoordinator {
       this as any // 传入自己，以便 Dream 可以触发沉淀
     );
 
-    console.log('[Enhanced Coordinator] Dream Consolidator initialized');
+    logger.info('[Enhanced Coordinator] Dream Consolidator initialized');
   }
 
   /**
@@ -65,7 +66,7 @@ export class EnhancedPrecipitationCoordinator extends PrecipitationCoordinator {
       // 每 60 分钟检查一次是否需要整合
       this.dreamScheduler.start(60);
 
-      console.log('[Enhanced Coordinator] Dream Scheduler started');
+      logger.info('[Enhanced Coordinator] Dream Scheduler started');
     }
   }
 
@@ -90,7 +91,7 @@ export class EnhancedPrecipitationCoordinator extends PrecipitationCoordinator {
       throw new Error('Dream Consolidator not initialized');
     }
 
-    console.log('[Enhanced Coordinator] 🌙 Manually triggering Dream consolidation...');
+    logger.info('[Enhanced Coordinator] 🌙 Manually triggering Dream consolidation...');
     return await this.dreamConsolidator.trigger();
   }
 
@@ -143,13 +144,13 @@ export async function setupEnhancedPrecipitation(
   await coordinator.start(
     // 沉淀回调（可选，协调器会自动处理）
     async () => {
-      console.log('[Precipitation] Executing scheduled precipitation...');
+      logger.info('[Precipitation] Executing scheduled precipitation...');
     },
     // 探索回调（可选）
     undefined
   );
 
-  console.log('[Setup] ✓ Enhanced precipitation system started');
+  logger.info('[Setup] ✓ Enhanced precipitation system started');
 
   return coordinator;
 }

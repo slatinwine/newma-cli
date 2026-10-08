@@ -20,9 +20,12 @@ export class ToolRegistry {
 
   /**
    * Register a tool
+   *
+   * override: 插件工具覆盖同名内置工具时使用；
+   * 默认重复注册仍抛错（暴露真实的注册冲突）
    */
-  register(tool: Tool): void {
-    if (this.tools.has(tool.name)) {
+  register(tool: Tool, options: { override?: boolean } = {}): void {
+    if (this.tools.has(tool.name) && !options.override) {
       throw new Error(`Tool already registered: ${tool.name}`);
     }
     this.tools.set(tool.name, tool);

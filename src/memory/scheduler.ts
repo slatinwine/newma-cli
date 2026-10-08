@@ -7,6 +7,7 @@
 import * as schedule from 'node-schedule';
 import { PrecipitationConfig } from './types-precipitation';
 import { ExplorationConfig } from './types-exploration';
+import { logger } from '../logger';
 
 /**
  * 定时任务类型
@@ -81,12 +82,12 @@ export class MemoryScheduler {
     explorationCallback?: () => Promise<void>
   ): Promise<void> {
     if (this.isRunningFlag) {
-      console.warn('[Scheduler] Already running');
+      logger.warn('[Scheduler] Already running');
       return Promise.resolve();
     }
 
     this.isRunningFlag = true;
-    console.log('[Scheduler] Starting memory scheduler...');
+    logger.info('[Scheduler] Starting memory scheduler...');
 
     // 注册经验沉淀任务
     if (this.config.enabled !== false) {
@@ -98,7 +99,7 @@ export class MemoryScheduler {
       this.scheduleExploration(explorationCallback);
     }
 
-    console.log('[Scheduler] ✓ Scheduler started');
+    logger.info('[Scheduler] ✓ Scheduler started');
     return Promise.resolve();
   }
 
@@ -107,11 +108,11 @@ export class MemoryScheduler {
    */
   stop(): void {
     if (!this.isRunningFlag) {
-      console.warn('[Scheduler] Not running');
+      logger.warn('[Scheduler] Not running');
       return;
     }
 
-    console.log('[Scheduler] Stopping scheduler...');
+    logger.info('[Scheduler] Stopping scheduler...');
 
     // 清理所有重试超时
     for (const timeout of this.retryTimeouts) {
@@ -137,7 +138,7 @@ export class MemoryScheduler {
     this.jobs.clear();
     this.isRunningFlag = false;
 
-    console.log('[Scheduler] ✓ Scheduler stopped');
+    logger.info('[Scheduler] ✓ Scheduler stopped');
   }
 
   /**
@@ -146,7 +147,7 @@ export class MemoryScheduler {
   schedulePrecipitation(callback: () => Promise<void>): void {
     const cronExpression = this.config.schedule || '0 2 * * *';
 
-    console.log(`[Scheduler] Scheduling precipitation job: ${cronExpression}`);
+    logger.info(`[Scheduler] Scheduling precipitation job: ${cronExpression}`);
 
     // 创建定时任务
     this.precipitationJob = schedule.scheduleJob(
@@ -165,7 +166,7 @@ export class MemoryScheduler {
       nextRun: this.precipitationJob.nextInvocation() || undefined,
     });
 
-    console.log(`[Scheduler] ✓ Next precipitation: ${this.formatDate(this.precipitationJob.nextInvocation() || undefined)}`);
+    logger.info(`[Scheduler] ✓ Next precipitation: ${this.formatDate(this.precipitationJob.nextInvocation() || undefined)}`);
   }
 
   /**
@@ -175,7 +176,7 @@ export class MemoryScheduler {
     const jobName = 'precipitation';
     const startTime = new Date();
 
-    console.log(`[Scheduler] ⏰ Executing precipitation job at ${this.formatDate(startTime)}`);
+    logger.info(`[Scheduler] ⏰ Executing precipitation job at ${this.formatDate(startTime)}`);
 
     try {
       // 执行回调
@@ -188,20 +189,20 @@ export class MemoryScheduler {
         scheduledJob.nextRun = this.precipitationJob.nextInvocation() || undefined;
       }
 
-      console.log('[Scheduler] ✓ Precipitation completed');
+      logger.info('[Scheduler] ✓ Precipitation completed');
     } catch (error: any) {
-      console.error(`[Scheduler] ✗ Precipitation failed: ${error.message}`);
+      logger.error(`[Scheduler] ✗ Precipitation failed: ${error.message}`);
 
       // 失败重试：1 小时后重试
-      console.log('[Scheduler] ⚠ Scheduling retry in 1 hour...');
+      logger.info('[Scheduler] ⚠ Scheduling retry in 1 hour...');
 
       const retryTimeout = setTimeout(async () => {
         try {
-          console.log('[Scheduler] 🔄 Retrying precipitation...');
+          logger.info('[Scheduler] 🔄 Retrying precipitation...');
           await callback();
-          console.log('[Scheduler] ✓ Retry succeeded');
+          logger.info('[Scheduler] ✓ Retry succeeded');
         } catch (retryError: any) {
-          console.error(`[Scheduler] ✗ Retry failed: ${retryError.message}`);
+          logger.error(`[Scheduler] ✗ Retry failed: ${retryError.message}`);
         }
       }, 60 * 60 * 1000); // 1 小时
       this.retryTimeouts.push(retryTimeout);
@@ -216,7 +217,7 @@ export class MemoryScheduler {
       throw new Error('Scheduler is not running');
     }
 
-    console.log('[Scheduler] 🔹 Manually triggering precipitation...');
+    logger.info('[Scheduler] 🔹 Manually triggering precipitation...');
 
     await this.executePrecipitation(callback);
   }
@@ -227,7 +228,7 @@ export class MemoryScheduler {
   scheduleExploration(callback: () => Promise<void>): void {
     const cronExpression = this.explorationConfig.schedule || '0 */4 * * *';
 
-    console.log(`[Scheduler] Scheduling exploration job: ${cronExpression}`);
+    logger.info(`[Scheduler] Scheduling exploration job: ${cronExpression}`);
 
     // 创建定时任务
     this.explorationJob = schedule.scheduleJob(cronExpression, async () => {
@@ -243,7 +244,7 @@ export class MemoryScheduler {
       nextRun: this.explorationJob.nextInvocation() || undefined,
     });
 
-    console.log(
+    logger.info(
       `[Scheduler] ✓ Next exploration: ${this.formatDate(this.explorationJob.nextInvocation() || undefined)}`
     );
   }
@@ -255,7 +256,7 @@ export class MemoryScheduler {
     const jobName = 'exploration';
     const startTime = new Date();
 
-    console.log(`[Scheduler] ⏰ Executing exploration job at ${this.formatDate(startTime)}`);
+    logger.info(`[Scheduler] ⏰ Executing exploration job at ${this.formatDate(startTime)}`);
 
     try {
       // 执行回调
@@ -268,20 +269,20 @@ export class MemoryScheduler {
         scheduledJob.nextRun = this.explorationJob.nextInvocation() || undefined;
       }
 
-      console.log('[Scheduler] ✓ Exploration completed');
+      logger.info('[Scheduler] ✓ Exploration completed');
     } catch (error: any) {
-      console.error(`[Scheduler] ✗ Exploration failed: ${error.message}`);
+      logger.error(`[Scheduler] ✗ Exploration failed: ${error.message}`);
 
       // 失败重试：30分钟后重试
-      console.log('[Scheduler] ⚠ Scheduling retry in 30 minutes...');
+      logger.info('[Scheduler] ⚠ Scheduling retry in 30 minutes...');
 
       const retryTimeout = setTimeout(async () => {
         try {
-          console.log('[Scheduler] 🔄 Retrying exploration...');
+          logger.info('[Scheduler] 🔄 Retrying exploration...');
           await callback();
-          console.log('[Scheduler] ✓ Retry succeeded');
+          logger.info('[Scheduler] ✓ Retry succeeded');
         } catch (retryError: any) {
-          console.error(`[Scheduler] ✗ Retry failed: ${retryError.message}`);
+          logger.error(`[Scheduler] ✗ Retry failed: ${retryError.message}`);
         }
       }, 30 * 60 * 1000); // 30分钟
       this.retryTimeouts.push(retryTimeout);
@@ -296,7 +297,7 @@ export class MemoryScheduler {
       throw new Error('Scheduler is not running');
     }
 
-    console.log('[Scheduler] 🔹 Manually triggering exploration...');
+    logger.info('[Scheduler] 🔹 Manually triggering exploration...');
 
     await this.executeExploration(callback);
   }
@@ -309,7 +310,7 @@ export class MemoryScheduler {
       throw new Error('Precipitation job not scheduled');
     }
 
-    console.log(`[Scheduler] Updating schedule: ${cronExpression}`);
+    logger.info(`[Scheduler] Updating schedule: ${cronExpression}`);
 
     // 取消旧任务
     this.precipitationJob.cancel();

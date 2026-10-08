@@ -7,6 +7,7 @@
 
 import { join, dirname } from 'path';
 import { writeFile, readFile, mkdir, stat, readdir, access, utimes } from 'fs/promises';
+import { logger } from '../logger';
 import { existsSync } from 'fs';
 import { NewmaConfig } from '../config';
 import { PrecipitationCoordinator } from './precipitation-coordinator';
@@ -203,13 +204,15 @@ export class DreamConsolidator {
 
     // 合并默认配置
     this.config = {
-      enabled: config.enabled ?? true,
+      // 默认关闭（opt-in）：整合目标原本指向从不存在的 .kode/sessions，
+      // 空转且易误解；显式启用后读取 .memo/sessions 分片存储
+      enabled: config.enabled ?? false,
       minHours: config.minHours ?? 24,
       minSessions: config.minSessions ?? 5,
       maxTurns: config.maxTurns ?? 30,
       lockFilePath: config.lockFilePath ?? join(projectRoot, '.memo', 'dream', '.consolidate-lock'),
       memoryDir: config.memoryDir ?? join(projectRoot, '.memo', 'memory'),
-      sessionDir: config.sessionDir ?? join(projectRoot, '.kode', 'sessions'),
+      sessionDir: config.sessionDir ?? join(projectRoot, '.memo', 'sessions'),
       eventCooldownSeconds: config.eventCooldownSeconds ?? 30,
       triggerPrecipitation: config.triggerPrecipitation ?? true,
     };
@@ -225,7 +228,7 @@ export class DreamConsolidator {
 
     // 检查锁文件
     if (await this.isLocked()) {
-      console.log('[Dream] ⚠ Consolidation already in progress (locked)');
+      logger.debug('[Dream] ⚠ Consolidation already in progress (locked)');
       return false;
     }
 
@@ -236,14 +239,14 @@ export class DreamConsolidator {
       : Infinity;
 
     if (hoursSinceLast < this.config.minHours) {
-      console.log(`[Dream] ⚠ Too soon since last consolidation (${hoursSinceLast.toFixed(1)}h < ${this.config.minHours}h)`);
+      logger.debug(`[Dream] ⚠ Too soon since last consolidation (${hoursSinceLast.toFixed(1)}h < ${this.config.minHours}h)`);
       return false;
     }
 
     // 检查 session 数量
     const sessionCount = await this.countRecentSessions();
     if (sessionCount < this.config.minSessions) {
-      console.log(`[Dream] ⚠ Not enough sessions (${sessionCount} < ${this.config.minSessions})`);
+      logger.debug(`[Dream] ⚠ Not enough sessions (${sessionCount} < ${this.config.minSessions})`);
       return false;
     }
 
@@ -278,7 +281,7 @@ export class DreamConsolidator {
         logs: [],
       };
 
-      console.log('[Dream] 🌙 Starting memory consolidation...');
+      logger.debug('[Dream] 🌙 Starting memory consolidation...');
 
       // 执行整合
       const result = await this.execute();
@@ -288,7 +291,7 @@ export class DreamConsolidator {
 
       return result;
     } catch (error: any) {
-      console.error(`[Dream] ✗ Consolidation failed: ${error.message}`);
+      logger.error(`[Dream] ✗ Consolidation failed: ${error.message}`);
 
       if (this.currentProgress) {
         this.currentProgress.phase = 'failed';
@@ -382,25 +385,31 @@ export class DreamConsolidator {
     const sessions: SessionInfo[] = [];
 
     try {
-      const files = await readdir(this.config.sessionDir);
+      // 递归扫描：.memo/sessions 为 YYYY-MM/<id>.json 分片布局；
+      // 兼容旧 .kode/sessions 的 *.jsonl 平铺布局
+      const collect = async (dir: string): Promise<void> => {
+        const entries = await readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const full = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            await collect(full);
+          } else if (entry.name.endsWith('.json') || entry.name.endsWith('.jsonl')) {
+            const stats = await stat(full);
+            const sessionId = entry.name.replace(/\.(json|jsonl)$/, '');
 
-      for (const file of files) {
-        if (file.endsWith('.jsonl')) {
-          const filePath = join(this.config.sessionDir, file);
-          const stats = await stat(filePath);
-          const sessionId = file.replace('.jsonl', '');
+            // 查找关联的记忆文件
+            const memoryFiles = await this.findSessionMemoryFiles(sessionId);
 
-          // 查找关联的记忆文件
-          const memoryFiles = await this.findSessionMemoryFiles(sessionId);
-
-          sessions.push({
-            id: sessionId,
-            path: filePath,
-            mtime: stats.mtime,
-            memoryFiles,
-          });
+            sessions.push({
+              id: sessionId,
+              path: full,
+              mtime: stats.mtime,
+              memoryFiles,
+            });
+          }
         }
-      }
+      };
+      await collect(this.config.sessionDir);
     } catch (error: any) {
       this.log(`[Dream] ⚠ Error scanning sessions: ${error.message}`);
     }
@@ -561,13 +570,13 @@ ${this.currentProgress!.filesTouched.length > 0
       if (this.currentProgress) {
         this.log('[Dream] Lock released');
       } else {
-        console.log('[Dream] Lock released');
+        logger.debug('[Dream] Lock released');
       }
     } catch (error: any) {
       if (this.currentProgress) {
         this.log(`[Dream] ⚠ Error releasing lock: ${error.message}`);
       } else {
-        console.log(`[Dream] ⚠ Error releasing lock: ${error.message}`);
+        logger.debug(`[Dream] ⚠ Error releasing lock: ${error.message}`);
       }
     }
   }
@@ -614,8 +623,20 @@ ${this.currentProgress!.filesTouched.length > 0
    */
   private async countRecentSessions(): Promise<number> {
     try {
-      const files = await readdir(this.config.sessionDir);
-      return files.filter(f => f.endsWith('.jsonl')).length;
+      let count = 0;
+      const collect = async (dir: string): Promise<void> => {
+        const entries = await readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const full = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            await collect(full);
+          } else if (entry.name.endsWith('.json') || entry.name.endsWith('.jsonl')) {
+            count++;
+          }
+        }
+      };
+      await collect(this.config.sessionDir);
+      return count;
     } catch (error) {
       return 0;
     }
@@ -643,7 +664,7 @@ ${this.currentProgress!.filesTouched.length > 0
     if (this.currentProgress) {
       this.currentProgress.logs.push(`[${timestamp}] ${message}`);
     }
-    console.log(message);
+    logger.debug(message);
   }
 
   /**
@@ -678,16 +699,16 @@ export class DreamScheduler {
    * 启动定期检查
    */
   start(intervalMinutes: number = 60): void {
-    console.log(`[Dream Scheduler] Starting (check every ${intervalMinutes}m)...`);
+    logger.debug(`[Dream Scheduler] Starting (check every ${intervalMinutes}m)...`);
 
     this.checkInterval = setInterval(async () => {
       try {
         if (await this.consolidator.shouldTrigger()) {
-          console.log('[Dream Scheduler] ⏰ Triggering consolidation...');
+          logger.debug('[Dream Scheduler] ⏰ Triggering consolidation...');
           await this.consolidator.trigger();
         }
       } catch (error: any) {
-        console.error(`[Dream Scheduler] ✗ Error: ${error.message}`);
+        logger.error(`[Dream Scheduler] ✗ Error: ${error.message}`);
       }
     }, intervalMinutes * 60 * 1000);
   }
@@ -699,7 +720,7 @@ export class DreamScheduler {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = undefined;
-      console.log('[Dream Scheduler] Stopped');
+      logger.debug('[Dream Scheduler] Stopped');
     }
   }
 }

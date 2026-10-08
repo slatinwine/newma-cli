@@ -7,6 +7,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { logger } from '../logger';
 import {
   UserPreferences,
   CodeStylePreferences,
@@ -63,7 +64,7 @@ export class PreferencesManager {
       const content = await fs.readFile(this.preferencesFile, 'utf-8');
       this.preferences = JSON.parse(content);
     } catch (error) {
-      console.error(`[Preferences] Failed to load: ${error}`);
+      logger.error(`[Preferences] Failed to load: ${error}`);
       this.preferences = null;
     }
   }
@@ -81,7 +82,7 @@ export class PreferencesManager {
       const content = JSON.stringify(this.preferences, null, 2);
       await fs.writeFile(this.preferencesFile, content, 'utf-8');
     } catch (error) {
-      console.error(`[Preferences] Failed to save: ${error}`);
+      logger.error(`[Preferences] Failed to save: ${error}`);
     }
   }
 
@@ -151,7 +152,7 @@ export class PreferencesManager {
     };
 
     await this.savePreferences();
-    console.log('[Preferences] Created default preferences');
+    logger.info('[Preferences] Created default preferences');
   }
 
   /**
@@ -214,7 +215,7 @@ export class PreferencesManager {
     await this.savePreferences();
 
     if (options.reason) {
-      console.log(`[Preferences] Updated: ${options.reason}`);
+      logger.info(`[Preferences] Updated: ${options.reason}`);
     }
   }
 
@@ -293,7 +294,7 @@ export class PreferencesManager {
 
     if (updated) {
       await this.savePreferences();
-      console.log('[Preferences] Learned from behavior');
+      logger.info('[Preferences] Learned from behavior');
     }
   }
 
@@ -319,9 +320,9 @@ export class PreferencesManager {
         verbosity: style,
       });
 
-      console.log('[Preferences] Imported from 用户侧写.md');
+      logger.info('[Preferences] Imported from 用户侧写.md');
     } catch (error) {
-      console.error(`[Preferences] Failed to import profile: ${error}`);
+      logger.error(`[Preferences] Failed to import profile: ${error}`);
     }
   }
 
@@ -457,7 +458,7 @@ export class PreferencesManager {
   async resetToDefaults(): Promise<void> {
     this.preferences = null;
     await this.createDefaultPreferences();
-    console.log('[Preferences] Reset to defaults');
+    logger.info('[Preferences] Reset to defaults');
   }
 
   /**

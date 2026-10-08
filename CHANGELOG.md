@@ -4,6 +4,42 @@ All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/) and the project
 versions [Semantic Versioning](https://semver.org/).
 
+## [3.5.1] - 2026-10-08
+
+### Added
+
+- Central logger (`src/logger.ts`) with levels: `--verbose` shows debug
+  internals, `--silent`/`-q` and `NEWMA_LOG` control volume; memory
+  subsystem noise (init messages, periodic scheduler heartbeats) moved off
+  the user's screen.
+- REPL end-to-end black-box tests: pipe-driven runs against the compiled
+  `dist/cli.js` verify /help, /save→/saves, /flags→/tree flows.
+
+### Fixed
+
+- Plugin loading always failed with "Tool already registered: file" (the
+  success path re-registered an existing builtin); plugin tools now
+  override builtins explicitly and the duplicate registration was removed.
+- Skills initialization crashed on every start (`__dirname is not
+  defined` in ESM output); the Python executor path is now derived from
+  the module URL.
+- Command injection surface: the memo plugin spawned its CLI with
+  `shell: true` on Windows while passing user-typed decision titles as
+  arguments; the shell is gone (CreateProcess resolves executables
+  directly).
+- Session index writes debounced: adding a message no longer rewrites the
+  whole index file twice per message (session file durability unchanged;
+  index flushes on reads and session end).
+
+### Changed
+
+- Dream consolidation is now opt-in (`dream.enabled`, default false) and
+  reads the real sharded session store (`.memo/sessions/**`) instead of a
+  `.kode/sessions` layout that never existed.
+- Adjudicated experimental subsystems: event sources, dual-track runtime
+  and adventure mode are kept (wired and testable); dream consolidation
+  preserved behind its flag. All documented as experimental in README.
+
 ## [3.5.0] - 2026-10-08
 
 ### Added — Game-Style Session Management

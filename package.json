@@ -1,6 +1,6 @@
 {
   "name": "newma-cli",
-  "version": "3.5.0",
+  "version": "3.5.1",
   "type": "module",
   "description": "Newma (牛码) - AI-driven code assistant with planning → search → execute → verify loop.",
   "main": "dist/index.js",

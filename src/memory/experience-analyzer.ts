@@ -8,6 +8,7 @@ import { readFile, readdir } from 'fs/promises';
 import { join } from 'path';
 import { callAI } from '../ai';
 import { NewmaConfig } from '../config';
+import { logger } from '../logger';
 import {
   SkillSuggestion,
   MemoryDataSummary,
@@ -66,30 +67,30 @@ export class ExperienceAnalyzer {
   async analyze(config: NewmaConfig): Promise<AnalysisResult> {
     const startTime = Date.now();
 
-    console.log('[Analyzer] Starting experience analysis...');
-    console.log(`[Analyzer] Confidence threshold: ${this.options.confidenceThreshold}`);
-    console.log(`[Analyzer] Max skills: ${this.options.maxSkills}`);
-    console.log(`[Analyzer] Analysis period: ${this.options.analysisDays} days`);
+    logger.info('[Analyzer] Starting experience analysis...');
+    logger.info(`[Analyzer] Confidence threshold: ${this.options.confidenceThreshold}`);
+    logger.info(`[Analyzer] Max skills: ${this.options.maxSkills}`);
+    logger.info(`[Analyzer] Analysis period: ${this.options.analysisDays} days`);
 
     try {
       // 1. 收集记忆数据
       const memoryData = await this.collectMemoryData();
-      console.log(`[Analyzer] ✓ Collected memory data from ${this.getDataSourcesCount(memoryData)} sources`);
+      logger.info(`[Analyzer] ✓ Collected memory data from ${this.getDataSourcesCount(memoryData)} sources`);
 
       // 2. 调用 AI 进行分析
       const suggestions = await this.analyzeWithAI(memoryData, config);
-      console.log(`[Analyzer] ✓ AI generated ${suggestions.length} suggestions`);
+      logger.info(`[Analyzer] ✓ AI generated ${suggestions.length} suggestions`);
 
       // 3. 过滤低置信度建议
       const filteredSuggestions = this.filterByConfidence(suggestions);
-      console.log(`[Analyzer] ✓ ${filteredSuggestions.length} suggestions passed confidence filter`);
+      logger.info(`[Analyzer] ✓ ${filteredSuggestions.length} suggestions passed confidence filter`);
 
       // 4. 限制数量
       const finalSuggestions = filteredSuggestions.slice(0, this.options.maxSkills);
-      console.log(`[Analyzer] ✓ Selected top ${finalSuggestions.length} suggestions`);
+      logger.info(`[Analyzer] ✓ Selected top ${finalSuggestions.length} suggestions`);
 
       const duration = Date.now() - startTime;
-      console.log(`[Analyzer] ✓ Analysis completed in ${duration}ms`);
+      logger.info(`[Analyzer] ✓ Analysis completed in ${duration}ms`);
 
       // 5. 保存建议到临时目录（供 Generator 读取）
       await this.saveSuggestions(finalSuggestions);
@@ -101,7 +102,7 @@ export class ExperienceAnalyzer {
         tokensUsed: this.estimateTokensUsed(memoryData),
       };
     } catch (error: any) {
-      console.error(`[Analyzer] ✗ Analysis failed: ${error.message}`);
+      logger.error(`[Analyzer] ✗ Analysis failed: ${error.message}`);
       throw error;
     }
   }
@@ -114,7 +115,7 @@ export class ExperienceAnalyzer {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - this.options.analysisDays);
 
-    console.log(`[Analyzer] Collecting data from ${this.formatDate(startDate)} to ${this.formatDate(endDate)}`);
+    logger.info(`[Analyzer] Collecting data from ${this.formatDate(startDate)} to ${this.formatDate(endDate)}`);
 
     const data: MemoryDataSummary = {
       errors: [],
@@ -152,7 +153,7 @@ export class ExperienceAnalyzer {
       // 8. 🎮 分支树结局（决策路线统计）
       data.branches = await this.loadBranchOutcomes(startDate, endDate);
     } catch (error: any) {
-      console.warn(`[Analyzer] ⚠ Some memory data could not be loaded: ${error.message}`);
+      logger.warn(`[Analyzer] ⚠ Some memory data could not be loaded: ${error.message}`);
     }
 
     return data;
@@ -162,7 +163,7 @@ export class ExperienceAnalyzer {
    * 使用 AI 分析记忆数据
    */
   private async analyzeWithAI(memoryData: MemoryDataSummary, config: NewmaConfig): Promise<SkillSuggestion[]> {
-    console.log('[Analyzer] Calling AI for pattern recognition...');
+    logger.info('[Analyzer] Calling AI for pattern recognition...');
 
     // 构建 AI Prompt
     const prompt = this.buildAnalysisPrompt(memoryData);
@@ -186,7 +187,7 @@ export class ExperienceAnalyzer {
 
       return suggestions;
     } catch (error: any) {
-      console.error(`[Analyzer] AI analysis failed: ${error.message}`);
+      logger.error(`[Analyzer] AI analysis failed: ${error.message}`);
       throw new Error(`Failed to analyze with AI: ${error.message}`);
     }
   }
@@ -325,8 +326,8 @@ ${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
         generatedAt: new Date(),
       }));
     } catch (error: any) {
-      console.error(`[Analyzer] Failed to parse AI response: ${error.message}`);
-      console.error(`[Analyzer] Response was: ${response.substring(0, 500)}...`);
+      logger.error(`[Analyzer] Failed to parse AI response: ${error.message}`);
+      logger.error(`[Analyzer] Response was: ${response.substring(0, 500)}...`);
       throw new Error('Invalid AI response format');
     }
   }
@@ -352,7 +353,7 @@ ${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
     // 保存
     await writeFile(tempFile, JSON.stringify(suggestions, null, 2), 'utf-8');
 
-    console.log(`[Analyzer] ✓ Suggestions saved to ${tempFile}`);
+    logger.info(`[Analyzer] ✓ Suggestions saved to ${tempFile}`);
   }
 
   // ========== 数据加载方法 ==========
@@ -371,7 +372,7 @@ ${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
         return date >= startDate && date <= endDate;
       });
     } catch (error) {
-      console.warn('[Analyzer] Could not load error records');
+      logger.warn('[Analyzer] Could not load error records');
       return [];
     }
   }
@@ -391,7 +392,7 @@ ${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
         return date >= startDate && date <= endDate;
       });
     } catch (error) {
-      console.warn('[Analyzer] Could not load execution history');
+      logger.warn('[Analyzer] Could not load execution history');
       return [];
     }
   }
@@ -402,7 +403,7 @@ ${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
       const content = await readFile(prefsFile, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      console.warn('[Analyzer] Could not load user preferences');
+      logger.warn('[Analyzer] Could not load user preferences');
       return {};
     }
   }
@@ -413,7 +414,7 @@ ${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
       const content = await readFile(contextFile, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      console.warn('[Analyzer] Could not load project context');
+      logger.warn('[Analyzer] Could not load project context');
       return {};
     }
   }
@@ -431,7 +432,7 @@ ${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
         return date >= startDate && date <= endDate;
       });
     } catch (error) {
-      console.warn('[Analyzer] Could not load reasoning history');
+      logger.warn('[Analyzer] Could not load reasoning history');
       return [];
     }
   }
@@ -449,7 +450,7 @@ ${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
         return date >= startDate && date <= endDate;
       });
     } catch (error) {
-      console.warn('[Analyzer] Could not load decisions');
+      logger.warn('[Analyzer] Could not load decisions');
       return [];
     }
   }
@@ -467,7 +468,7 @@ ${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
         return date >= startDate && date <= endDate;
       });
     } catch (error) {
-      console.warn('[Analyzer] Could not load session history');
+      logger.warn('[Analyzer] Could not load session history');
       return [];
     }
   }
@@ -537,7 +538,7 @@ ${JSON.stringify((memoryData.branches || []).slice(0, 15), null, 2)}
 
       return outcomes;
     } catch (error) {
-      console.warn('[Analyzer] Could not load branch outcomes');
+      logger.warn('[Analyzer] Could not load branch outcomes');
       return [];
     }
   }

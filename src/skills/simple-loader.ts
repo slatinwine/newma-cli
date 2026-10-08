@@ -7,7 +7,8 @@
 
 import { spawn } from 'child_process';
 import { readFile } from 'fs/promises';
-import { resolve, join } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 
 /**
@@ -119,8 +120,11 @@ export class SimpleSkillManager {
 
   constructor(options: SimpleSkillManagerOptions = {}) {
     this.pythonPath = options.pythonPath || 'python3';
+    // ESM 无 __dirname：从模块 URL 推导（dist 与 src 各自相对上两级
+    // 即 python/；bun 单文件打包时可用 executorPath 覆盖）
+    const moduleDir = dirname(fileURLToPath(import.meta.url));
     this.executorPath = options.executorPath ||
-      resolve(__dirname, '../../python/execute_skill.py');
+      resolve(moduleDir, '../../python/execute_skill.py');
 
     this.options = {
       skillDirectories: options.skillDirectories || ['.kode/skills'],

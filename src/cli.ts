@@ -73,6 +73,7 @@ program
   // 输出控制选项（用于集成和测试）
   .option('-s, --silent', 'Silent mode: suppress non-essential output (logs, banners, prompts)')
   .option('-q, --quiet', 'Quiet mode: alias for --silent')
+  .option('--verbose', 'Verbose output: show debug-level internal logs (NEWMA_LOG=debug)')
   .option('--api', 'API mode: output only AI response (no REPL, no prompts)')
   .option('--mode <mode>', 'API mode type: chat (default), plan, do')
   .option('--api-level <level>', 'API quality level: 1=fast, 2=standard, 3=deep (default: 2)', '2')
@@ -98,6 +99,14 @@ program
   // 用户需求（非交互模式下必填）
   .argument('[requirement]', 'What you want the AI to do (e.g. "add a login page")')
   .action(async (requirement: string | undefined, options) => {
+    // ---------- 日志级别（最先设置，影响所有子系统的输出量） ----------
+    const { setLogLevel } = await import('./logger');
+    if (options.verbose) {
+      setLogLevel('debug');
+    } else if (options.silent || options.quiet) {
+      setLogLevel('warn');
+    }
+
     // ---------- 创建全局 AbortController 用于处理 Ctrl+C ----------
     const abortController = new AbortController();
 

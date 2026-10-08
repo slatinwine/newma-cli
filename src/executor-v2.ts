@@ -22,6 +22,7 @@ import { searchAndFetchTool } from './tools/builtin/search-and-fetch';
 import { MCPClientManager } from './mcp/client';
 import { adaptAllMCPTools } from './mcp/tools/mcp-tool-adapter';
 import { MCPServerConfig } from './mcp/types';
+import { logger } from './logger';
 
 /**
  * Tool-based executor class
@@ -75,19 +76,19 @@ export class ToolExecutor {
    */
   async initializeMCP(mcpServersConfig: Record<string, MCPServerConfig>): Promise<void> {
     if (Object.keys(mcpServersConfig).length === 0) {
-      console.log(chalk.yellow('[MCP] No MCP servers configured'));
+      logger.info(chalk.yellow('[MCP] No MCP servers configured'));
       return;
     }
 
     try {
-      console.log(chalk.cyan('[MCP] Initializing MCP clients...'));
+      logger.info(chalk.cyan('[MCP] Initializing MCP clients...'));
 
       // Connect to all configured MCP servers
       for (const [name, config] of Object.entries(mcpServersConfig)) {
         try {
           await this.mcpManager.addClient(name, config);
         } catch (error) {
-          console.error(chalk.red(`[MCP] ❌ Failed to connect to ${name}:`), error);
+          logger.error(chalk.red(`[MCP] ❌ Failed to connect to ${name}:`), error);
         }
       }
 
@@ -95,7 +96,7 @@ export class ToolExecutor {
       const allTools = await this.mcpManager.getAllTools();
 
       if (allTools.size === 0) {
-        console.log(chalk.yellow('[MCP] No tools available from MCP servers'));
+        logger.info(chalk.yellow('[MCP] No tools available from MCP servers'));
         return;
       }
 
@@ -110,14 +111,14 @@ export class ToolExecutor {
         this.registry.register(tool);
       }
 
-      console.log(chalk.green(`[MCP] ✅ Loaded ${adaptedTools.length} tool(s) from ${allTools.size} server(s)`));
+      logger.info(chalk.green(`[MCP] ✅ Loaded ${adaptedTools.length} tool(s) from ${allTools.size} server(s)`));
 
       // Show tools by server
       for (const [serverName, tools] of allTools) {
-        console.log(chalk.gray(`[MCP]    ${serverName}: ${tools.length} tool(s)`));
+        logger.info(chalk.gray(`[MCP]    ${serverName}: ${tools.length} tool(s)`));
       }
     } catch (error) {
-      console.error(chalk.red('[MCP] ❌ Failed to initialize MCP:'), error);
+      logger.error(chalk.red('[MCP] ❌ Failed to initialize MCP:'), error);
     }
   }
 
@@ -137,13 +138,13 @@ export class ToolExecutor {
     }
 
     try {
-      console.log(chalk.cyan('[PLUGIN] Loading plugins...'));
+      logger.info(chalk.cyan('[PLUGIN] Loading plugins...'));
 
       // Initialize plugin system (discovers and loads plugins)
       await this.pluginSystem.initialize();
 
       const stats = this.pluginSystem.getStats();
-      console.log(chalk.green(`[PLUGIN] ✅ Loaded ${stats.total} plugin(s)`));
+      logger.info(chalk.green(`[PLUGIN] ✅ Loaded ${stats.total} plugin(s)`));
 
       // Get plugin registry and register their tools
       const pluginRegistry = this.pluginSystem.getRegistry();
@@ -151,16 +152,18 @@ export class ToolExecutor {
 
       for (const plugin of plugins) {
         for (const tool of plugin.tools) {
-          // Re-register tool (plugin tools override builtin tools)
-          this.registry.register(tool);
+          // 插件工具覆盖同名内置工具（显式 override，不炸整个加载流程）
+          this.registry.register(tool, { override: true });
         }
       }
 
-      // Re-register fileTool (still needed)
-      this.registry.register(fileTool);
+      // fileTool 仍需要（若插件未提供同名工具）
+      if (!this.registry.get(fileTool.name)) {
+        this.registry.register(fileTool);
+      }
     } catch (error) {
-      console.error(chalk.red('[PLUGIN] ❌ Failed to load plugins:', error));
-      console.log(chalk.yellow('[PLUGIN] Using builtin tools...'));
+      logger.error(chalk.red('[PLUGIN] ❌ Failed to load plugins:', error));
+      logger.info(chalk.yellow('[PLUGIN] Using builtin tools...'));
     }
   }
 
@@ -169,7 +172,7 @@ export class ToolExecutor {
    */
   private registerBuiltinTools(): void {
     if (this.pluginSystem?.isEnabled()) {
-      console.log(chalk.yellow('[PLUGIN] ⚠️  Using builtin tools (plugins disabled)'));
+      logger.info(chalk.yellow('[PLUGIN] ⚠️  Using builtin tools (plugins disabled)'));
     }
 
     this.registry.register(fileTool);

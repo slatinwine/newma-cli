@@ -99,7 +99,7 @@ export interface DraftSkill {
  * Dream 配置（嵌入在 PrecipitationConfig 中）
  */
 export interface DreamConfigOptions {
-  /** 是否启用（默认: true） */
+  /** 是否启用（默认: false，需显式开启；会话源为 .memo/sessions） */
   enabled?: boolean;
   /** 最小间隔小时数（默认: 24） */
   minHours?: number;
@@ -111,7 +111,7 @@ export interface DreamConfigOptions {
   lockFilePath?: string;
   /** Memory 目录路径（默认: .memo/memory） */
   memoryDir?: string;
-  /** Session 目录路径（默认: .kode/sessions） */
+  /** Session 目录路径（默认: .memo/sessions，递归扫描 .json/.jsonl） */
   sessionDir?: string;
   /** 事件冷却时间（秒，默认: 30） */
   eventCooldownSeconds?: number;

@@ -12,6 +12,7 @@ import { ExperienceAnalyzer } from './experience-analyzer';
 import { SkillGenerator } from './skill-generator';
 import { SkillDraftManager } from './skill-draft-manager';
 import { ExplorationConfig } from './types-exploration';
+import { logger } from '../logger';
 import {
   PrecipitationConfig,
   PrecipitationResult,
@@ -73,11 +74,11 @@ export class PrecipitationCoordinator {
     precipitationCallback?: () => Promise<void>,
     explorationCallback?: () => Promise<void>
   ): Promise<void> {
-    console.log('[Precipitation] Starting precipitation system...');
+    logger.info('[Precipitation] Starting precipitation system...');
 
     // 检查是否启用
     if (this.config.enabled === false) {
-      console.log('[Precipitation] ⚠ Precipitation system disabled');
+      logger.info('[Precipitation] ⚠ Precipitation system disabled');
       return;
     }
 
@@ -95,7 +96,7 @@ export class PrecipitationCoordinator {
       explorationCallback
     );
 
-    console.log('[Precipitation] ✓ Precipitation system started');
+    logger.info('[Precipitation] ✓ Precipitation system started');
     this.logScheduleInfo();
   }
 
@@ -103,18 +104,18 @@ export class PrecipitationCoordinator {
    * 停止沉淀系统
    */
   async stop(): Promise<void> {
-    console.log('[Precipitation] Stopping precipitation system...');
+    logger.info('[Precipitation] Stopping precipitation system...');
 
     this.scheduler.stop();
 
-    console.log('[Precipitation] ✓ Precipitation system stopped');
+    logger.info('[Precipitation] ✓ Precipitation system stopped');
   }
 
   /**
    * 手动触发沉淀
    */
   async trigger(): Promise<PrecipitationResult> {
-    console.log('[Precipitation] 🔹 Manually triggering precipitation...');
+    logger.info('[Precipitation] 🔹 Manually triggering precipitation...');
 
     return await this.executePrecipitation();
   }
@@ -229,14 +230,14 @@ export class PrecipitationCoordinator {
           await this.draftManager.approve(id, 'Auto-approved by system');
           approved++;
         } catch (error) {
-          console.warn(`Failed to auto-approve ${id}`);
+          logger.warn(`Failed to auto-approve ${id}`);
         }
       } else if (action === 'reject') {
         try {
           await this.draftManager.reject(id, 'Auto-rejected by system');
           rejected++;
         } catch (error) {
-          console.warn(`Failed to auto-reject ${id}`);
+          logger.warn(`Failed to auto-reject ${id}`);
         }
       }
     }
@@ -317,9 +318,9 @@ export class PrecipitationCoordinator {
     const description = MemoryScheduler.describeCronExpression(schedule);
     const nextRun = this.scheduler.getNextExecution();
 
-    console.log(`[Precipitation] Schedule: ${description} (${schedule})`);
+    logger.info(`[Precipitation] Schedule: ${description} (${schedule})`);
     if (nextRun) {
-      console.log(`[Precipitation] Next run: ${nextRun.toISOString()}`);
+      logger.info(`[Precipitation] Next run: ${nextRun.toISOString()}`);
     }
   }
 

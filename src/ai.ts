@@ -20,6 +20,7 @@ import { HookType } from './hooks/types';
 import { getGlobalAICache, createAIRequest } from './cache/ai-cache';
 import { httpsAgent } from './http-agent';
 import { MemoCliPlugin } from './loop/plugins/memo-cli-plugin';
+import { logger } from './logger';
 import * as path from 'path';
 import { extractImageReferences, loadImageAsBase64, generateDataURL, detectImageType, estimateImageTokens, compressImage } from './utils/image-processor';
 import { HttpsProxyAgent } from 'https-proxy-agent';
@@ -260,7 +261,7 @@ async function getMemoContext(
     return context;
   } catch (error) {
     // 静默失败，不影响主流程
-    console.log(chalk.gray(`[Memo] Failed to get context: ${error}`));
+    logger.debug(`[Memo] Failed to get context: ${error}`);
     return '';
   }
 }
@@ -632,7 +633,7 @@ export async function chatAI(
       }
     } catch (error) {
       // 静默失败，不影响主流程
-      console.log(chalk.gray(`[Memo] Failed to get context: ${error}`));
+      logger.debug(`[Memo] Failed to get context: ${error}`);
     }
   }
 
@@ -661,7 +662,7 @@ export async function chatAI(
       return cachedResponse.content || '';
     }
   } catch (error) {
-    console.log(chalk.gray(`⚠️  [AI Cache] Cache check failed: ${error}`));
+    logger.debug(`[AI Cache] Cache check failed: ${error}`);
     // 继续执行 API 调用
   }
 
@@ -1704,7 +1705,7 @@ User requirement: "${userRequirement}"
         } as ExtendedAIResponse;
       }
     } catch (error) {
-      console.log(chalk.gray(`⚠️  [AI Cache] Cache check failed: ${error}`));
+      logger.debug(`[AI Cache] Cache check failed: ${error}`);
       // 继续执行 API 调用
     }
   }

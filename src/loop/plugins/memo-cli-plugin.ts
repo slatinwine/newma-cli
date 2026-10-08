@@ -22,6 +22,7 @@ import { ReasoningManager, createReasoningManager } from '../../memory/reasoning
 import { ReasoningStepType, ReasoningStepStatus } from '../../memory/reasoning-types';
 import { MemorySearchEngine, MemorySearchResult, MemorySearchOptions } from '../../memory/search';
 import { MemoryContextInjector } from '../../memory/injection';
+import { logger } from '../../logger';
 import {
   BranchTreeManager,
   createBranchTreeManager,
@@ -122,7 +123,7 @@ export class MemoCliPlugin implements LoopPlugin {
       });
     } catch (error) {
       // Lazy initialization failed - will retry in initialize()
-      console.warn(`[Memo] MemorySearchEngine initialization deferred: ${error}`);
+      logger.warn(`[Memo] MemorySearchEngine initialization deferred: ${error}`);
     }
   }
 
@@ -167,10 +168,12 @@ export class MemoCliPlugin implements LoopPlugin {
    */
   private async callMemo(args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
+      // 不加 shell（Windows CreateProcess 会隐式补 .exe）——args 含用户
+      // 输入（决策标题/内容），shell 模式下会被命令解释器展开（注入面）
       const memo = spawn(this.pythonCommand, [this.memoPath, ...args], {
         cwd: this.projectRoot,
         env: { ...process.env },
-        shell: process.platform === 'win32',
+        windowsHide: true,
       });
 
       let output = '';
@@ -212,7 +215,7 @@ export class MemoCliPlugin implements LoopPlugin {
       const content = await readFile(filePath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      console.error(`Failed to read decisions.json: ${error}`);
+      logger.error(`Failed to read decisions.json: ${error}`);
       return { decisions: [] };
     }
   }
@@ -231,7 +234,7 @@ export class MemoCliPlugin implements LoopPlugin {
       const content = await readFile(filePath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
-      console.error(`Failed to read index.json: ${error}`);
+      logger.error(`Failed to read index.json: ${error}`);
       return { files: {}, updated: null };
     }
   }
@@ -270,7 +273,7 @@ export class MemoCliPlugin implements LoopPlugin {
       const data = await this.readDecisionsFile();
       return data.decisions[data.decisions.length - 1].id;
     } catch (error) {
-      console.error(`Failed to record decision: ${error}`);
+      logger.error(`Failed to record decision: ${error}`);
       throw error;
     }
   }
@@ -333,7 +336,7 @@ export class MemoCliPlugin implements LoopPlugin {
 
       return results;
     } catch (error) {
-      console.error(`Failed to search decisions: ${error}`);
+      logger.error(`Failed to search decisions: ${error}`);
       return [];
     }
   }
@@ -372,7 +375,7 @@ export class MemoCliPlugin implements LoopPlugin {
 
       return results;
     } catch (error) {
-      console.error(`Failed to find related code: ${error}`);
+      logger.error(`Failed to find related code: ${error}`);
       return [];
     }
   }
@@ -465,7 +468,7 @@ export class MemoCliPlugin implements LoopPlugin {
       // 限制返回数量（最多 10 个）
       return tasks.slice(0, 10);
     } catch (error) {
-      console.error(`Failed to search tasks: ${error}`);
+      logger.error(`Failed to search tasks: ${error}`);
       return [];
     }
   }
@@ -477,7 +480,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.callMemo(['index']);
     } catch (error) {
-      console.error(`Failed to index project: ${error}`);
+      logger.error(`Failed to index project: ${error}`);
       throw error;
     }
   }
@@ -489,7 +492,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.callMemo(['doc']);
     } catch (error) {
-      console.error(`Failed to generate doc: ${error}`);
+      logger.error(`Failed to generate doc: ${error}`);
       throw error;
     }
   }
@@ -507,7 +510,7 @@ export class MemoCliPlugin implements LoopPlugin {
         decisions: decisions.decisions.length,
       };
     } catch (error) {
-      console.error(`Failed to get stats: ${error}`);
+      logger.error(`Failed to get stats: ${error}`);
       return { files: 0, decisions: 0 };
     }
   }
@@ -517,9 +520,9 @@ export class MemoCliPlugin implements LoopPlugin {
    */
   async initialize(): Promise<void> {
     if (!existsSync(this.memoDir)) {
-      console.log('Initializing .memo/ directory...');
+      logger.debug('Initializing .memo/ directory...');
       await this.callMemo(['stats']);
-      console.log('✓ .memo/ directory initialized');
+      logger.debug('✓ .memo/ directory initialized');
     }
 
     // 🔥 初始化上下文管理器
@@ -549,11 +552,11 @@ export class MemoCliPlugin implements LoopPlugin {
         await this.searchEngine.initialize();
         // Lazy index all memory sources
         await this.searchEngine.indexAll();
-        console.log('✓ Memory search engine initialized');
+        logger.debug('✓ Memory search engine initialized');
         // Initialize context injector
         this.contextInjector = new MemoryContextInjector(this.searchEngine);
       } catch (error) {
-        console.warn(`[Memo] Failed to initialize memory search engine: ${error}`);
+        logger.warn(`[Memo] Failed to initialize memory search engine: ${error}`);
       }
     }
   }
@@ -567,7 +570,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.contextManager.getContext(forceRefresh);
     } catch (error) {
-      console.error(`Failed to get project context: ${error}`);
+      logger.error(`Failed to get project context: ${error}`);
       return null;
     }
   }
@@ -579,7 +582,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.contextManager.updateContext();
     } catch (error) {
-      console.error(`Failed to update project context: ${error}`);
+      logger.error(`Failed to update project context: ${error}`);
       return null;
     }
   }
@@ -591,7 +594,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.contextManager.getSummary();
     } catch (error) {
-      console.error(`Failed to get project summary: ${error}`);
+      logger.error(`Failed to get project summary: ${error}`);
       return '';
     }
   }
@@ -603,7 +606,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.contextManager.recordChange(change);
     } catch (error) {
-      console.error(`Failed to record file change: ${error}`);
+      logger.error(`Failed to record file change: ${error}`);
     }
   }
 
@@ -613,9 +616,9 @@ export class MemoCliPlugin implements LoopPlugin {
   async clearContextCache() {
     try {
       await this.contextManager.clearCache();
-      console.log('✓ Context cache cleared');
+      logger.debug('✓ Context cache cleared');
     } catch (error) {
-      console.error(`Failed to clear context cache: ${error}`);
+      logger.error(`Failed to clear context cache: ${error}`);
     }
   }
 
@@ -628,7 +631,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.executionHistory.createSession(sessionId, this.projectRoot);
     } catch (error) {
-      console.error(`Failed to create execution session: ${error}`);
+      logger.error(`Failed to create execution session: ${error}`);
     }
   }
 
@@ -639,7 +642,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.executionHistory.recordCommandStart(input, type);
     } catch (error) {
-      console.error(`Failed to record command start: ${error}`);
+      logger.error(`Failed to record command start: ${error}`);
       return -1;
     }
   }
@@ -663,7 +666,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.executionHistory.recordCommandEnd(index, status, result);
     } catch (error) {
-      console.error(`Failed to record command end: ${error}`);
+      logger.error(`Failed to record command end: ${error}`);
     }
   }
 
@@ -674,7 +677,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.executionHistory.endSession();
     } catch (error) {
-      console.error(`Failed to end execution session: ${error}`);
+      logger.error(`Failed to end execution session: ${error}`);
     }
   }
 
@@ -691,7 +694,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.executionHistory.searchHistory(options);
     } catch (error) {
-      console.error(`Failed to search execution history: ${error}`);
+      logger.error(`Failed to search execution history: ${error}`);
       return [];
     }
   }
@@ -703,7 +706,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.executionHistory.getSummary(days);
     } catch (error) {
-      console.error(`Failed to get execution summary: ${error}`);
+      logger.error(`Failed to get execution summary: ${error}`);
       return null;
     }
   }
@@ -727,7 +730,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.errorMemory.recordError(error);
     } catch (error) {
-      console.error(`Failed to record error: ${error}`);
+      logger.error(`Failed to record error: ${error}`);
       return '';
     }
   }
@@ -748,7 +751,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.errorMemory.recordSolution(errorId, solution);
     } catch (error) {
-      console.error(`Failed to record solution: ${error}`);
+      logger.error(`Failed to record solution: ${error}`);
     }
   }
 
@@ -768,7 +771,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.errorMemory.searchErrors(options as any);
     } catch (error) {
-      console.error(`Failed to search errors: ${error}`);
+      logger.error(`Failed to search errors: ${error}`);
       return [];
     }
   }
@@ -780,7 +783,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.errorMemory.findSimilarErrors(errorType, errorMessage, limit);
     } catch (error) {
-      console.error(`Failed to find similar errors: ${error}`);
+      logger.error(`Failed to find similar errors: ${error}`);
       return [];
     }
   }
@@ -792,7 +795,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.errorMemory.getSummary(days);
     } catch (error) {
-      console.error(`Failed to get error summary: ${error}`);
+      logger.error(`Failed to get error summary: ${error}`);
       return null;
     }
   }
@@ -806,7 +809,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.preferencesManager.getPreferences();
     } catch (error) {
-      console.error(`Failed to get user preferences: ${error}`);
+      logger.error(`Failed to get user preferences: ${error}`);
       return null;
     }
   }
@@ -818,7 +821,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.preferencesManager.getCodeStylePreferences();
     } catch (error) {
-      console.error(`Failed to get code style preferences: ${error}`);
+      logger.error(`Failed to get code style preferences: ${error}`);
       return null;
     }
   }
@@ -830,7 +833,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.preferencesManager.getAIInteractionPreferences();
     } catch (error) {
-      console.error(`Failed to get AI interaction preferences: ${error}`);
+      logger.error(`Failed to get AI interaction preferences: ${error}`);
       return null;
     }
   }
@@ -842,7 +845,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.preferencesManager.updatePreferences(updates, options);
     } catch (error) {
-      console.error(`Failed to update user preferences: ${error}`);
+      logger.error(`Failed to update user preferences: ${error}`);
     }
   }
 
@@ -859,7 +862,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.preferencesManager.learnFromBehavior(behavior);
     } catch (error) {
-      console.error(`Failed to learn from behavior: ${error}`);
+      logger.error(`Failed to learn from behavior: ${error}`);
     }
   }
 
@@ -870,7 +873,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.preferencesManager.exportToUserProfile();
     } catch (error) {
-      console.error(`Failed to export user profile: ${error}`);
+      logger.error(`Failed to export user profile: ${error}`);
       return '';
     }
   }
@@ -882,7 +885,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.preferencesManager.getFormattedSummary();
     } catch (error) {
-      console.error(`Failed to get preferences summary: ${error}`);
+      logger.error(`Failed to get preferences summary: ${error}`);
       return '';
     }
   }
@@ -894,7 +897,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.preferencesManager.validatePreferences();
     } catch (error) {
-      console.error(`Failed to validate preferences: ${error}`);
+      logger.error(`Failed to validate preferences: ${error}`);
       return { valid: false, errors: ['Validation failed'] };
     }
   }
@@ -905,9 +908,9 @@ export class MemoCliPlugin implements LoopPlugin {
   async resetPreferences() {
     try {
       await this.preferencesManager.resetToDefaults();
-      console.log('✓ Preferences reset to defaults');
+      logger.debug('✓ Preferences reset to defaults');
     } catch (error) {
-      console.error(`Failed to reset preferences: ${error}`);
+      logger.error(`Failed to reset preferences: ${error}`);
     }
   }
 
@@ -920,7 +923,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.sessionContextManager.createSession(sessionId);
     } catch (error) {
-      console.error(`Failed to create session: ${error}`);
+      logger.error(`Failed to create session: ${error}`);
       return '';
     }
   }
@@ -936,7 +939,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.sessionContextManager.addMessage(role, content, metadata);
     } catch (error) {
-      console.error(`Failed to add session message: ${error}`);
+      logger.error(`Failed to add session message: ${error}`);
     }
   }
 
@@ -947,7 +950,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.sessionContextManager.endSession();
     } catch (error) {
-      console.error(`Failed to end session: ${error}`);
+      logger.error(`Failed to end session: ${error}`);
     }
   }
 
@@ -964,7 +967,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.sessionContextManager.searchContext(options);
     } catch (error) {
-      console.error(`Failed to search session context: ${error}`);
+      logger.error(`Failed to search session context: ${error}`);
       return [];
     }
   }
@@ -976,7 +979,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.sessionContextManager.getRecentSessions(limit);
     } catch (error) {
-      console.error(`Failed to get recent sessions: ${error}`);
+      logger.error(`Failed to get recent sessions: ${error}`);
       return [];
     }
   }
@@ -1006,7 +1009,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.sessionContextManager.getAIContextSummary(options);
     } catch (error) {
-      console.error(`Failed to get session AI context: ${error}`);
+      logger.error(`Failed to get session AI context: ${error}`);
       return '';
     }
   }
@@ -1020,7 +1023,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.reasoningManager.createChain(task, taskType);
     } catch (error) {
-      console.error(`Failed to create reasoning chain: ${error}`);
+      logger.error(`Failed to create reasoning chain: ${error}`);
       return '';
     }
   }
@@ -1038,7 +1041,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.reasoningManager.addStep(type, description, content, parentId, metadata);
     } catch (error) {
-      console.error(`Failed to add reasoning step: ${error}`);
+      logger.error(`Failed to add reasoning step: ${error}`);
       return '';
     }
   }
@@ -1054,7 +1057,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.reasoningManager.updateStep(stepId, status, result);
     } catch (error) {
-      console.error(`Failed to update reasoning step: ${error}`);
+      logger.error(`Failed to update reasoning step: ${error}`);
     }
   }
 
@@ -1065,7 +1068,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.reasoningManager.completeChain(success, output, error);
     } catch (error) {
-      console.error(`Failed to complete reasoning chain: ${error}`);
+      logger.error(`Failed to complete reasoning chain: ${error}`);
     }
   }
 
@@ -1083,7 +1086,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.reasoningManager.searchSimilarChains(task, taskType, limit);
     } catch (error) {
-      console.error(`Failed to search similar reasoning: ${error}`);
+      logger.error(`Failed to search similar reasoning: ${error}`);
       return [];
     }
   }
@@ -1102,7 +1105,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.reasoningManager.getAIContextSummary(task, taskType);
     } catch (error) {
-      console.error(`Failed to get reasoning AI context: ${error}`);
+      logger.error(`Failed to get reasoning AI context: ${error}`);
       return '';
     }
   }
@@ -1118,14 +1121,14 @@ export class MemoCliPlugin implements LoopPlugin {
    */
   async searchMemory(query: string, options?: MemorySearchOptions): Promise<MemorySearchResult[]> {
     if (!this.searchEngine) {
-      console.warn('[Memo] Search engine not initialized');
+      logger.warn('[Memo] Search engine not initialized');
       return [];
     }
 
     try {
       return await this.searchEngine.search(query, options);
     } catch (error) {
-      console.error(`Failed to search memory: ${error}`);
+      logger.error(`Failed to search memory: ${error}`);
       return [];
     }
   }
@@ -1153,7 +1156,7 @@ export class MemoCliPlugin implements LoopPlugin {
 
       return injection.formattedContext;
     } catch (error) {
-      console.warn(`[Memo] Failed to get memory context: ${error}`);
+      logger.warn(`[Memo] Failed to get memory context: ${error}`);
       return '';
     }
   }
@@ -1174,7 +1177,7 @@ export class MemoCliPlugin implements LoopPlugin {
       const injection = await this.contextInjector.getQuickContext(query, maxTokens);
       return injection.formattedContext;
     } catch (error) {
-      console.warn(`[Memo] Failed to get quick memory context: ${error}`);
+      logger.warn(`[Memo] Failed to get quick memory context: ${error}`);
       return '';
     }
   }
@@ -1204,7 +1207,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.branchTreeManager.recordDecision(options);
     } catch (error) {
-      console.error(`[Memo] Failed to record decision: ${error}`);
+      logger.error(`[Memo] Failed to record decision: ${error}`);
       return null;
     }
   }
@@ -1221,7 +1224,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.branchTreeManager.setOutcome(sessionId, nodeId, outcome, note);
     } catch (error) {
-      console.error(`[Memo] Failed to set branch outcome: ${error}`);
+      logger.error(`[Memo] Failed to set branch outcome: ${error}`);
       return false;
     }
   }
@@ -1238,7 +1241,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.branchTreeManager.setFlag(sessionId, key, value, source);
     } catch (error) {
-      console.error(`[Memo] Failed to set flag: ${error}`);
+      logger.error(`[Memo] Failed to set flag: ${error}`);
     }
   }
 
@@ -1249,7 +1252,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.branchTreeManager.clearFlag(sessionId, key);
     } catch (error) {
-      console.error(`[Memo] Failed to clear flag: ${error}`);
+      logger.error(`[Memo] Failed to clear flag: ${error}`);
       return false;
     }
   }
@@ -1261,7 +1264,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       await this.branchTreeManager.setActiveSession(sessionId);
     } catch (error) {
-      console.error(`[Memo] Failed to set active session: ${error}`);
+      logger.error(`[Memo] Failed to set active session: ${error}`);
     }
   }
 
@@ -1278,7 +1281,7 @@ export class MemoCliPlugin implements LoopPlugin {
       const mctsContext = await this.branchTreeManager.getRecommendationContext(sessionId);
       return flagContext + abandonedContext + mctsContext;
     } catch (error) {
-      console.warn(`[Memo] Failed to get branch context: ${error}`);
+      logger.warn(`[Memo] Failed to get branch context: ${error}`);
       return '';
     }
   }
@@ -1316,7 +1319,7 @@ export class MemoCliPlugin implements LoopPlugin {
         '\n'
       );
     } catch (error) {
-      console.warn(`[Memo] Failed to get conversation context: ${error}`);
+      logger.warn(`[Memo] Failed to get conversation context: ${error}`);
       return '';
     }
   }
@@ -1328,7 +1331,7 @@ export class MemoCliPlugin implements LoopPlugin {
     try {
       return await this.branchTreeManager.getRecommendation(sessionId);
     } catch (error) {
-      console.error(`[Memo] Failed to get recommendation: ${error}`);
+      logger.error(`[Memo] Failed to get recommendation: ${error}`);
       return null;
     }
   }

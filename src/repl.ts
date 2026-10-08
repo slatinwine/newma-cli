@@ -34,7 +34,8 @@ import { getPrecipitationConfig, NewmaConfig } from './config'; // 🔥 新增�
 import { SimpleSkillManager } from './skills/simple-loader'; // 🔥 新增：Skill Manager
 import { SkillRegistry } from './skills/registry'; // 🔥 新增：Skill Registry
 import { StateTracker, ExecutionStage, createStateTracker } from './state/tracker'; // 🔥 新增：状态追踪器
-import { TimeTravelManager } from './time-travel'; // 🎮 时间旅行（存档/分支树协调器）
+import { TimeTravelManager } from './time-travel';
+import { logger } from './logger'; // 🎮 时间旅行（存档/分支树协调器）
 
 /**
  * REPL 管理器
@@ -235,14 +236,14 @@ export class REPLManager {
         console.log(chalk.gray('📚 Memo system initialized'));
       }).catch((error) => {
         // 静默失败 - memo 可能不可用
-        console.log(chalk.gray(`[Memo] Initialization skipped: ${error.message}`));
+        logger.debug(`[Memo] Initialization skipped: ${error.message}`);
       });
 
       // 注册 Memo 命令到命令系统（如果存在）
       // TODO: 需要在 CommandManager 可用时注册
     } catch (error) {
       // 静默失败 - memo 是可选功能
-      console.log(chalk.gray(`[Memo] Not available: ${(error as Error).message}`));
+      logger.debug(`[Memo] Not available: ${(error as Error).message}`);
     }
 
     // 🔥 初始化记忆系统

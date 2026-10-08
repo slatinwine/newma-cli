@@ -8,6 +8,7 @@ import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
 import { gunzipSync, gzipSync } from 'zlib';
+import { logger } from '../logger';
 import {
   ExecutionSession,
   CommandRecord,
@@ -70,7 +71,7 @@ export class ExecutionHistoryManager {
       version: '1.0',
     };
 
-    console.log(`[ExecutionHistory] Created session: ${sessionId}`);
+    logger.info(`[ExecutionHistory] Created session: ${sessionId}`);
   }
 
   /**
@@ -81,7 +82,7 @@ export class ExecutionHistoryManager {
     type: CommandType
   ): Promise<number> {
     if (!this.currentSession) {
-      console.warn('[ExecutionHistory] No active session');
+      logger.warn('[ExecutionHistory] No active session');
       return -1;
     }
 
@@ -118,12 +119,12 @@ export class ExecutionHistoryManager {
     } = { duration: 0 }
   ): Promise<void> {
     if (!this.currentSession) {
-      console.warn('[ExecutionHistory] No active session');
+      logger.warn('[ExecutionHistory] No active session');
       return;
     }
 
     if (index < 0 || index >= this.currentSession.commands.length) {
-      console.warn(`[ExecutionHistory] Invalid command index: ${index}`);
+      logger.warn(`[ExecutionHistory] Invalid command index: ${index}`);
       return;
     }
 
@@ -233,7 +234,7 @@ export class ExecutionHistoryManager {
    */
   async endSession(): Promise<void> {
     if (!this.currentSession) {
-      console.warn('[ExecutionHistory] No active session to end');
+      logger.warn('[ExecutionHistory] No active session to end');
       return;
     }
 
@@ -244,14 +245,14 @@ export class ExecutionHistoryManager {
       // 保存会话
       await this.saveSession(this.currentSession);
 
-      console.log(`[ExecutionHistory] Saved session: ${this.currentSession.sessionId}`);
-      console.log(`  Commands: ${this.currentSession.stats.totalCommands}`);
-      console.log(`  Success Rate: ${this.currentSession.stats.successRate.toFixed(1)}%`);
-      console.log(`  Duration: ${this.currentSession.stats.totalDuration}ms`);
+      logger.info(`[ExecutionHistory] Saved session: ${this.currentSession.sessionId}`);
+      logger.info(`  Commands: ${this.currentSession.stats.totalCommands}`);
+      logger.info(`  Success Rate: ${this.currentSession.stats.successRate.toFixed(1)}%`);
+      logger.info(`  Duration: ${this.currentSession.stats.totalDuration}ms`);
 
       this.currentSession = null;
     } catch (error) {
-      console.error(`[ExecutionHistory] Failed to save session: ${error}`);
+      logger.error(`[ExecutionHistory] Failed to save session: ${error}`);
     }
   }
 
@@ -304,7 +305,7 @@ export class ExecutionHistoryManager {
 
       return JSON.parse(content);
     } catch (error) {
-      console.error(`[ExecutionHistory] Failed to read session ${sessionId}: ${error}`);
+      logger.error(`[ExecutionHistory] Failed to read session ${sessionId}: ${error}`);
       return null;
     }
   }
@@ -386,7 +387,7 @@ export class ExecutionHistoryManager {
         }
       }
     } catch (error) {
-      console.error(`[ExecutionHistory] Failed to search history: ${error}`);
+      logger.error(`[ExecutionHistory] Failed to search history: ${error}`);
     }
 
     return results;
@@ -490,19 +491,19 @@ export class ExecutionHistoryManager {
               await fs.unlink(filepath);
 
               compressedCount++;
-              console.log(`[ExecutionHistory] Compressed: ${file}`);
+              logger.info(`[ExecutionHistory] Compressed: ${file}`);
             } catch (error) {
-              console.error(`[ExecutionHistory] Failed to compress ${file}: ${error}`);
+              logger.error(`[ExecutionHistory] Failed to compress ${file}: ${error}`);
             }
           }
         }
       }
 
       if (compressedCount > 0) {
-        console.log(`[ExecutionHistory] Compressed ${compressedCount} old session(s)`);
+        logger.info(`[ExecutionHistory] Compressed ${compressedCount} old session(s)`);
       }
     } catch (error) {
-      console.error(`[ExecutionHistory] Failed to compress old data: ${error}`);
+      logger.error(`[ExecutionHistory] Failed to compress old data: ${error}`);
     }
 
     return compressedCount;
