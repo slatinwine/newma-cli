@@ -28,10 +28,15 @@ jobs:
         run: npm run build
 
       - name: Smoke test — dist 必须无需 loader 直接运行
-        run: node dist/cli.js --version
+        run: |
+          node dist/cli.js --version
+          node dist/cli.js --help > /dev/null
 
-      - name: Offline tests（存档/分支树/MCTS/修复项）
-        run: npx jest tests/ --coverage=false
+      - name: Offline tests（tests/ 全套 + ultrathink 套件）
+        run: npm test
+
+      - name: Package smoke — 发布内容物检查
+        run: npm pack --dry-run
 
   typecheck:
     runs-on: ubuntu-latest
