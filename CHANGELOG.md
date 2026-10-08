@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/) and the project
 versions [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- `--loop` mode now exits with code 2 on errors (1 stays "not done"),
+  matching the documented contract that shell wrappers rely on.
+
+### Changed
+
+- Logger default level is now `warn` — startup shows only the config
+  summary and banner; internal subsystem chatter ([PLUGIN],
+  [DraftManager], [Scheduler], …) requires `--verbose` or `NEWMA_LOG`.
+  This matches git/docker CLI conventions.
+
 ## [3.5.1] - 2026-10-08
 
 ### Added

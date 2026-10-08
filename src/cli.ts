@@ -73,7 +73,7 @@ program
   // 输出控制选项（用于集成和测试）
   .option('-s, --silent', 'Silent mode: suppress non-essential output (logs, banners, prompts)')
   .option('-q, --quiet', 'Quiet mode: alias for --silent')
-  .option('--verbose', 'Verbose output: show debug-level internal logs (NEWMA_LOG=debug)')
+  .option('--verbose', 'Verbose output: show info/debug internal logs (default is quiet; NEWMA_LOG=debug for the most)')
   .option('--api', 'API mode: output only AI response (no REPL, no prompts)')
   .option('--mode <mode>', 'API mode type: chat (default), plan, do')
   .option('--api-level <level>', 'API quality level: 1=fast, 2=standard, 3=deep (default: 2)', '2')
@@ -487,9 +487,12 @@ program
             aiResp = result.data;
             console.log(chalk.green('✅ 重试成功'));
           } else {
+            // --loop 退出码契约：0=完成 1=未完成 2=错误
+            if (loopMode) process.exit(2);
             process.exit(1);
           }
         } else {
+          if (loopMode) process.exit(2);
           process.exit(1);
         }
       }

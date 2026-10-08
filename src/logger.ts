@@ -25,7 +25,9 @@ let currentLevel: LogLevel = (() => {
     | LogLevel
     | undefined;
   if (env && env in LEVEL_ORDER) return env;
-  return 'info';
+  // 行业惯例：CLI 默认安静（git/docker 同款），info 及以下用 --verbose 或
+  // NEWMA_LOG=info/debug 打开
+  return 'warn';
 })();
 
 export function setLogLevel(level: LogLevel): void {
