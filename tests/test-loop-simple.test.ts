@@ -4,8 +4,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { CliFrontend } from './src/loop/frontends/cli-frontend';
-import { EventSourceManager } from './src/loop/event/event-source-manager';
+import { CliFrontend } from '../src/loop/frontends/cli-frontend';
+import { EventSourceManager } from '../src/loop/event/event-source-manager';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -88,9 +88,11 @@ describe('Loop System - Simple Tests', () => {
     it('should report correct stats', () => {
       manager.addFileWatcher({ watchPath: testDir, recursive: false });
 
+      // 惰性启动设计：新增 source 处于 Start 态（下次 poll 时启动）
       const stats = manager.getStats();
       expect(stats.total).toBe(1);
-      expect(stats.running).toBe(1); // Auto-started
+      expect(stats.running).toBe(0);
+      expect(stats.stopped).toBe(1);
       expect(stats.byType['file-watcher']).toBe(1);
     });
 
@@ -99,6 +101,9 @@ describe('Loop System - Simple Tests', () => {
         watchPath: testDir,
         recursive: false,
       });
+
+      // 惰性启动：显式 start 后进入 Running
+      expect(manager.startSource(id)).toBe(true);
 
       let stats = manager.getStats();
       expect(stats.running).toBe(1);
@@ -171,8 +176,8 @@ describe('Loop System - Simple Tests', () => {
 
       // Poll should complete without error
       const event = await manager.pollNext(10);
-      // Event may be null if no changes, but should not throw
-      expect(event).not.toThrow();
+      // pollNext 不抛错即通过：无变更时返回 null，有变更返回事件对象
+      expect(event === null || typeof event === 'object').toBe(true);
     });
 
     it('should get source by ID', () => {

@@ -1,6 +1,6 @@
 {
   "name": "newma-cli",
-  "version": "1.0.0",
+  "version": "3.5.0",
   "type": "module",
   "description": "Newma (牛码) - AI-driven code assistant with planning → search → execute → verify loop.",
   "main": "dist/index.js",
@@ -8,6 +8,16 @@
     "newma": "./dist/cli.js",
     "牛码": "./dist/cli.js",
     "newma-create-plugin": "./bin/newma-create-plugin.ts"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsc --project tsconfig.ui.json && tsc && node scripts/fix-dist-imports.mjs && npm run copy:prompts && npm run copy:templates",
@@ -23,15 +33,14 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
-    "test:event-sources": "jest test-event-sources.test.ts",
-    "test:event-sources:coverage": "jest test-event-sources.test.ts --coverage",
+    "test:event-sources": "jest tests/test-event-source-manager.test.ts",
     "plugin:load": "bun scripts/load-plugin.ts",
-    "benchmark:task-tracker": "node benchmark-task-tracker-v2.ts",
-    "benchmark:consolidation": "./benchmark-consolidation.sh",
+    "benchmark:task-tracker": "node bench/benchmark-task-tracker-v2.ts",
+    "benchmark:consolidation": "./bench/benchmark-consolidation.sh",
     "benchmark": "npm run benchmark:task-tracker && npm run benchmark:consolidation",
     "test:consolidation": "./tests/consolidation/test-consolidation.sh && ./tests/consolidation/test-repl-features.sh"
   },
-  "author": "Your Name <you@example.com>",
+  "author": "lijianyi <lijianyi04@126.com>",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",

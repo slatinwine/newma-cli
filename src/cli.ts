@@ -29,6 +29,12 @@ import { MCPClientManager } from './mcp/client';
 import { runApiMode, readStdin, formatOutput } from './api'; // 🔥 新增：API 模式
 import { MemoCliPlugin } from './loop/plugins/memo-cli-plugin'; // 🔥 新增：记忆系统集成
 
+// 版本号单一来源：package.json（发布与 --version 永远一致）
+const { readFileSync } = await import('fs');
+const pkgVersion: string = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf-8')
+).version ?? '0.0.0';
+
 const program = new Command();
 
 program
@@ -36,7 +42,7 @@ program
   .description(
     'Newma (牛码) - AI‑driven code assistant with planning → search → execute → verify loop.'
   )
-  .version('3.0.0')
+  .version(pkgVersion)
   // 基础选项
   .option('-d, --dir <path>', 'Project root directory', process.cwd())
   // Gateway integration options

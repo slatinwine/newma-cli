@@ -5,10 +5,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { EventSourceManager, EventSourceType } from './src/loop/event/event-source-manager';
-import { FileWatcherEventSource } from './src/loop/event/file-watcher-source';
-import { WebSocketEventSource } from './src/loop/event/websocket-source';
-import { HTTPEventSource } from './src/loop/event/http-source';
+import { EventSourceManager, EventSourceType } from '../src/loop/event/event-source-manager';
+import { FileWatcherEventSource } from '../src/loop/event/file-watcher-source';
+import { WebSocketEventSource } from '../src/loop/event/websocket-source';
+import { HTTPEventSource } from '../src/loop/event/http-source';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -96,9 +96,12 @@ describe('EventSourceManager', () => {
         recursive: false,
       });
 
-      // Stop
+      // Stop（Start 态下 stopSource 返回 false——设计如此）
       const stopped = manager.stopSource(id);
-      expect(stopped).toBe(true);
+      expect(stopped).toBe(false);
+      expect(manager.startSource(id)).toBe(true);
+      const stopRunning = manager.stopSource(id);
+      expect(stopRunning).toBe(true);
 
       // Start
       const started = manager.startSource(id);
@@ -148,8 +151,10 @@ describe('EventSourceManager', () => {
         recursive: false,
       });
 
+      // 惰性启动：显式 start 后进入 Running
+      manager.startSource(id);
       let stats = manager.getStats();
-      expect(stats.running).toBe(1); // Auto-started
+      expect(stats.running).toBe(1);
       expect(stats.stopped).toBe(0);
 
       manager.stopSource(id);
@@ -217,7 +222,7 @@ describe('EventSourceManager', () => {
       // Poll should complete without error
       const event = await manager.pollNext(10);
       // May be null if no events, but should not throw
-      expect(event).toBeAny();
+      expect(event === null || typeof event === 'object').toBe(true);
     });
   });
 });

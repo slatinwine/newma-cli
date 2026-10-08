@@ -1,9 +1,9 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/test-ultrathink', '<rootDir>'],
+  roots: ['<rootDir>/tests', '<rootDir>/test-ultrathink', '<rootDir>/src'],
   testMatch: ['**/*.test.ts'],
-  testPathIgnorePatterns: ['node_modules'],
+  testPathIgnorePatterns: ['node_modules', '/archive/', '/dist/'],
   transformIgnorePatterns: [],
   setupFilesAfterEnv: ['<rootDir>/test-ultrathink/setup.ts'],
   collectCoverageFrom: [

@@ -3,7 +3,7 @@
  * 测试状态机核心逻辑
  */
 
-import { PlanStateMachine, PlanState, NavigationAction } from './src/plan-state-machine';
+import { PlanStateMachine, PlanState, NavigationAction } from '../src/plan-state-machine';
 
 describe('PlanStateMachine', () => {
   it('should create state machine with correct initial state', () => {

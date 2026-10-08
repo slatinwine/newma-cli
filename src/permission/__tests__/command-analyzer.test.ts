@@ -6,17 +6,23 @@
 
 import { checkers, analyzeCommand } from '../command-analyzer';
 import { PermissionContext } from '../types';
+import path from 'path';
+
+// 跨平台：路径断言用当前平台的绝对路径构造，POSIX 风格输入仅用于
+// “白名单外”类负向用例（任何平台下都不在白名单内）
+const PROJ = path.resolve('/home/user/project');
+const inWhitelist = (p: string) => path.join(PROJ, p);
 
 function makeContext(overrides?: Partial<PermissionContext>): PermissionContext {
   return {
     toolName: 'shell',
     action: '',
-    cwd: '/home/user/project',
+    cwd: PROJ,
     mode: 'normal',
     sessionRules: [],
     localRules: [],
     globalRules: [],
-    workingDirectories: ['/home/user/project'],
+    workingDirectories: [PROJ],
     ...overrides,
   };
 }
@@ -105,7 +111,7 @@ describe('command-analyzer', () => {
     });
 
     it('白名单内输入重定向不触发', () => {
-      const result = check('sort < data.txt', makeContext());
+      const result = check(`sort < "${inWhitelist('data.txt')}"`, makeContext());
       expect(result).toBeNull();
     });
 
@@ -116,7 +122,7 @@ describe('command-analyzer', () => {
     });
 
     it('白名单内输出重定向不触发', () => {
-      const result = check('echo hello > out.txt', makeContext());
+      const result = check(`echo hello > "${inWhitelist('out.txt')}"`, makeContext());
       expect(result).toBeNull();
     });
 
@@ -172,10 +178,10 @@ describe('command-analyzer', () => {
   // ─── 6. 路径白名单验证 ───
   describe('pathValidationCheck', () => {
     const check = checkers.pathValidationCheck;
-    const ctx = makeContext({ workingDirectories: ['/home/user/project'] });
+    const ctx = makeContext({ workingDirectories: [PROJ] });
 
     it('白名单内路径通过', () => {
-      const result = check('cat /home/user/project/src/index.ts', ctx);
+      const result = check(`cat "${inWhitelist('src/index.ts')}"`, ctx);
       expect(result).toBeNull();
     });
 
@@ -193,8 +199,9 @@ describe('command-analyzer', () => {
     });
 
     it('相对路径解析后检查', () => {
+      // 相对路径按 cwd 解析后应落在白名单内（cwd 即白名单目录）
       const result = check('cat ./src/index.ts', ctx);
-      expect(result).toBeNull(); // 在 cwd 内
+      expect(result).toBeNull();
     });
   });
 
