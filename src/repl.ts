@@ -1484,6 +1484,8 @@ export class REPLManager {
     console.log(chalk.white('/diff') + chalk.gray('          - Show git diff of changes'));
     console.log(chalk.white('/preset') + chalk.gray('       - Quick configuration presets'));
     console.log(chalk.white('/mode') + chalk.gray('         - Show or change execution mode'));
+    console.log(chalk.white('/chat') + chalk.gray('         - Switch to chat mode (typing anything chats by default)'));
+    console.log(chalk.white('/review-on') + chalk.gray('      - Approve file changes before write (/review-off disables)'));
     console.log(chalk.white('/set') + chalk.gray('          - Set configuration options'));
     console.log(chalk.white('/fft') + chalk.gray('          - Toggle FFT fast decision mode'));
     console.log(chalk.white('/landmark') + chalk.gray('     - Toggle Landmark Counting mode'));

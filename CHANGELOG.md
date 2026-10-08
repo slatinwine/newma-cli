@@ -8,6 +8,16 @@ versions [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Tab completion drift**: 36 dispatched commands were missing from the
+  completion table (users could not Tab-complete /undo, /diff, /preset,
+  /mode, /review-*, /skill-*, all precipitation commands, …). The table
+  now mirrors the dispatcher; a new consistency gate
+  (tests/command-consistency.test.ts) cross-checks dispatcher ↔
+  completion ↔ /help so this cannot silently regress again.
+- /help was missing /chat and the review-mode switches.
+
+### Fixed
+
 - **Double Ctrl+C now exits**: the SIGINT handler printed "Press Ctrl+C
   again to exit" but never implemented the second-press exit. Two
   presses within 2 seconds now trigger a graceful shutdown (branch
