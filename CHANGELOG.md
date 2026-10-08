@@ -8,6 +8,25 @@ versions [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **AI response cache poisoning**: the cache key did not include the
+  target endpoint, so a response obtained from one endpoint (a mock,
+  proxy or different provider) would be replayed for requests to
+  another. The endpoint origin now participates in the key.
+- Configuration precedence flipped to CLI flag > environment variable >
+  settings.json (12-factor convention). Previously a stale
+  `~/.kode/settings.json` apiKey silently overrode `OPENAI_API_KEY`
+  from the environment, which also made CI/test injection impossible.
+
+### Added
+
+- `NEWMA_CACHE=off` disables the AI response cache (used by tests/CI
+  for isolation).
+- Mock-LLM end-to-end test: drives the full one-shot
+  plan → confirm → execute pipeline against a local OpenAI-compatible
+  server — the AI happy path is now covered without real credentials.
+
+### Fixed
+
 - `--loop` mode now exits with code 2 on errors (1 stays "not done"),
   matching the documented contract that shell wrappers rely on.
 

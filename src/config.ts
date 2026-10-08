@@ -121,12 +121,17 @@ function loadSettingsFile(): SettingsConfig | null {
   }
 }
 
-/** 从 settings.json 和 .env 读取配置（settings.json 优先级更高） */
+/** 
+ * 从 CLI flag（已注入 env）、环境变量、settings.json 读取配置。
+ * 优先级：CLI flag > 环境变量 > settings.json > 默认值
+ * （12-factor 惯例：环境变量覆盖文件配置，保证 CI/容器可注入、
+ *  不会被用户目录里的过期配置压住）
+ */
 export function getDefaultConfig(): Config {
-  // 1. 尝试从 settings.json 读取
+  // 1. 读取 settings.json（最低优先级的显式配置）
   const settings = loadSettingsFile();
 
-  // 2. 读取环境变量作为后备
+  // 2. 读取环境变量（优先于 settings.json）
   const envApiKey = process.env.OPENAI_API_KEY;
   const envBaseUrl = process.env.OPENAI_BASE_URL?.replace(/\/+$/, '');
   const envEndpoint = process.env.OPENAI_ENDPOINT?.trim();
@@ -136,30 +141,30 @@ export function getDefaultConfig(): Config {
   const envSupportsResponseFormat = process.env.OPENAI_SUPPORTS_RESPONSE_FORMAT?.toLowerCase() === 'true';
   const envProxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.ALL_PROXY;
 
-  // 3. 合并配置（settings.json > 环境变量 > 默认值）
-  const apiKey = settings?.openai?.apiKey ?? envApiKey;
+  // 3. 合并配置（环境变量 > settings.json > 默认值）
+  const apiKey = envApiKey ?? settings?.openai?.apiKey;
   if (!apiKey) {
     console.error('❌ 请在 settings.json 或 .env 中配置 OPENAI_API_KEY');
     console.error('   可以运行: npm run init-settings 来生成配置文件模板');
     process.exit(1);
   }
 
-  const baseUrl = settings?.openai?.baseUrl ?? envBaseUrl ?? 'https://open.bigmodel.cn/api/coding/paas/v4';
-  const endpoint = settings?.openai?.endpoint ?? envEndpoint;
-  const model = settings?.openai?.model ?? envModel ?? 'glm-5';
+  const baseUrl = envBaseUrl ?? settings?.openai?.baseUrl ?? 'https://open.bigmodel.cn/api/coding/paas/v4';
+  const endpoint = envEndpoint ?? settings?.openai?.endpoint;
+  const model = envModel ?? settings?.openai?.model ?? 'glm-5';
   const functionCallingEnabled = settings?.project?.enableFunctionCalling ?? false;
   const executionMode = settings?.project?.executionMode ?? 'subagent';
-  const supportsResponseFormat = settings?.openai?.supportsResponseFormat ?? envSupportsResponseFormat ?? undefined;
+  const supportsResponseFormat = envSupportsResponseFormat ?? settings?.openai?.supportsResponseFormat ?? undefined;
   const useFFT = settings?.project?.useFFT ?? false;  // 默认不启用FFT
   const useLandmark = settings?.project?.useLandmark ?? false;  // 默认不启用Landmark
   const autoAlgorithm = settings?.project?.autoAlgorithm ?? true;  // 默认启用自动算法选择
 
   // Vision configuration
-  const enableVision = settings?.project?.enableVision ?? envEnableVision ?? false;
-  const visionModel = settings?.openai?.visionModel ?? envVisionModel ?? getDefaultVisionModel(baseUrl);
+  const enableVision = envEnableVision ?? settings?.project?.enableVision ?? false;
+  const visionModel = envVisionModel ?? settings?.openai?.visionModel ?? getDefaultVisionModel(baseUrl);
 
   // New configurations
-  const proxy = settings?.openai?.proxy ?? envProxy;
+  const proxy = envProxy ?? settings?.openai?.proxy;
   const reviewMode = settings?.reviewMode ?? { enabled: false };
   const eventSystem = settings?.eventSystem ?? { enabled: false };
 

@@ -654,7 +654,7 @@ export async function chatAI(
   // 检查缓存（在循环开始前检查）
   try {
     const cachedResponse = await aiCache.get(
-      { model: config.model, messages, temperature: 0.7, maxTokens: dynamicMaxTokens }
+      { model: config.model, messages, temperature: 0.7, maxTokens: dynamicMaxTokens, baseUrl: config.baseUrl }
     );
 
     if (cachedResponse) {
@@ -903,7 +903,7 @@ export async function chatAI(
     // 🚀 AI 缓存：保存成功的响应
     try {
       await aiCache.set(
-        { model: config.model, messages, temperature: 0.7, maxTokens: dynamicMaxTokens },
+        { model: config.model, messages, temperature: 0.7, maxTokens: dynamicMaxTokens, baseUrl: config.baseUrl },
         filteredMessage,
         1000 * 60 * 10  // 10 分钟 TTL
       );

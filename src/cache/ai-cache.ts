@@ -18,6 +18,8 @@ interface AIRequestMetadata {
   temperature: number;
   maxTokens: number;
   messages: Array<{ role: string; content: string }>;
+  /** 请求目标端点——不同端点（真实 API vs mock/代理）绝不能共享缓存 */
+  baseUrl?: string;
 }
 
 /**
@@ -87,6 +89,8 @@ export class AICache {
     // 序列化核心参数（不包含完整messages）
     const serialized = JSON.stringify({
       model: request.model,
+      // 端点 origin 参与键：防止 mock/代理的响应被回放给真实 API
+      origin: request.baseUrl ? new URL(request.baseUrl).origin : '',
       temperature: Math.round(request.temperature * 10) / 10, // 四舍五入到1位小数
       maxTokens: Math.round(request.maxTokens / 1000) * 1000, // 归整到1000
       messageKey,
@@ -106,6 +110,7 @@ export class AICache {
    */
   async get(request: AIRequestMetadata): Promise<AICachedResponse | null> {
     if (!this.enabled) return null;
+    if (process.env.NEWMA_CACHE === 'off') return null;
 
     const key = this.generateCacheKey(request);
     const cached = await this.cache.get<AICachedResponse>(key);
@@ -131,6 +136,7 @@ export class AICache {
     ttl?: number
   ): Promise<void> {
     if (!this.enabled) return;
+    if (process.env.NEWMA_CACHE === 'off') return;
 
     const key = this.generateCacheKey(request);
     const cachedResponse: AICachedResponse = {
