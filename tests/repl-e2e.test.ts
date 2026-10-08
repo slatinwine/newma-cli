@@ -124,6 +124,39 @@ maybeSuite('🖥️ REPL 端到端（dist CLI 黑盒）', () => {
   );
 
   test(
+    'SIGTERM 优雅关闭：结算并保存后退出（仅 Unix，Windows 不可捕获 SIGTERM）',
+    async () => {
+      if (process.platform === 'win32') {
+        // Windows: kill(SIGTERM) 是无条件 TerminateProcess，无法优雅
+        console.log('skipped on win32');
+        return;
+      }
+      const { stdout, code } = await new Promise<{ stdout: string; code: number | null }>((resolve, reject) => {
+        const child = spawn(process.execPath, [CLI, '-i', '--quiet'], {
+          cwd: dir,
+          env: { ...process.env, NO_COLOR: '1' },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let out = '';
+        child.stdout.on('data', (d) => (out += d));
+        child.stderr.on('data', (d) => (out += d));
+        setTimeout(() => child.kill('SIGTERM'), 5000);
+        const t = setTimeout(() => {
+          child.kill('SIGKILL');
+          reject(new Error('SIGTERM shutdown timed out'));
+        }, 20000);
+        child.on('close', (code2) => {
+          clearTimeout(t);
+          resolve({ stdout: out, code: code2 });
+        });
+      });
+      expect(code).toBe(0); // 优雅退出（非信号终止）
+      expect(stdout).toContain('Session ended');
+    },
+    30_000
+  );
+
+  test(
     '/flags 设置 + /tree 渲染（决策链路落盘可见）',
     async () => {
       const { stdout } = await runRepl(dir, [

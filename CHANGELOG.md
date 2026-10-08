@@ -8,6 +8,26 @@ versions [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Double Ctrl+C now exits**: the SIGINT handler printed "Press Ctrl+C
+  again to exit" but never implemented the second-press exit. Two
+  presses within 2 seconds now trigger a graceful shutdown (branch
+  settlement + memory save), same as /exit.
+- **SIGTERM settles session state**: a new unified `gracefulShutdown()`
+  (idempotent) is shared by /exit, readline close, double Ctrl+C and
+  SIGTERM, so abandoned-branch settlement and memory persistence run on
+  every exit path. (Windows cannot catch SIGTERM — platform limitation,
+  the graceful path is exercised by CI on Linux.)
+
+### Added
+
+- `bench/benchmark-session-write.mjs`: quantifies per-message session
+  persistence cost. Verdict at realistic scale (≤500 messages): total
+  write time under a second — the O(n²) full-file rewrite is documented
+  and deliberately kept for message durability; revisit only if
+  sessions routinely exceed ~1000 messages.
+
+### Fixed
+
 - **AI response cache poisoning**: the cache key did not include the
   target endpoint, so a response obtained from one endpoint (a mock,
   proxy or different provider) would be replayed for requests to
