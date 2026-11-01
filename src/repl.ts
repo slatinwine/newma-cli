@@ -1085,9 +1085,16 @@ export class REPLManager {
         console.log(chalk.green('🔓 Session bypass enabled: All changes will be auto-approved\n'));
         break;
 
-      default:
-        console.log(chalk.yellow(`Unknown command: ${command}`));
-        console.log(chalk.gray('Type /help for available commands.\n'));
+      default: {
+        // Super-agent 子系统命令（/confirm /workers /stop）——未命中则报未知命令
+        const handled = await import('./loop/super/repl-bridge')
+          .then((m) => m.handleSuperCommand(this as any, command, args.join(' ')))
+          .catch(() => false);
+        if (!handled) {
+          console.log(chalk.yellow(`Unknown command: ${command}`));
+          console.log(chalk.gray('Type /help for available commands.\n'));
+        }
+      }
     }
   }
 

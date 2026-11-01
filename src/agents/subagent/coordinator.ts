@@ -15,6 +15,13 @@ import {
 } from './types';
 
 /**
+ * 确认回调：由调用方注入。注入非阻塞实现（如 ConfirmationQueue）后，
+ * Worker 等确认期间会话可继续响应其他输入（文章 4.1 全双工交互）。
+ * 未注入时保持原有的 inquirer 阻塞式交互（向后兼容）。
+ */
+export type ConfirmationResolver = (title: string, detail?: string) => Promise<boolean>;
+
+/**
  * SubAgent 协调器
  *
  * 负责协调整个两阶段执行流程
@@ -62,9 +69,13 @@ export class SubAgentCoordinator {
     // 获取计划
     const plan = planningResult.metadata?.plan;
 
-    // 用户确认
+    // 用户确认：优先使用注入的非阻塞 resolver，否则回退 inquirer 阻塞式
     if (!options?.skipConfirmation) {
-      const confirmed = await this.promptForConfirmation();
+      const resolver = options?.confirmationResolver ?? this.defaultBlockingConfirmation();
+      const confirmed = await resolver(
+        'Continue to execution phase?',
+        this.summarizePlan(plan)
+      );
 
       if (!confirmed) {
         console.log(chalk.yellow('\n⚠️  Execution cancelled by user.\n'));
@@ -93,7 +104,8 @@ export class SubAgentCoordinator {
   }
 
   /**
-   * 提示用户确认
+   * 提示用户确认（默认阻塞实现，仅向后兼容保留；
+   * 新代码请注入 non-blocking 的 confirmationResolver）
    */
   private async promptForConfirmation(): Promise<boolean> {
     console.log('');
@@ -122,6 +134,31 @@ export class SubAgentCoordinator {
     }
 
     return action === 'yes';
+  }
+
+  /** 默认的阻塞式确认（inquirer）。保持旧行为，仅在未注入 resolver 时使用。 */
+  private defaultBlockingConfirmation(): ConfirmationResolver {
+    return async () => this.promptForConfirmation();
+  }
+
+  /** 生成给确认流程展示的计划摘要（Inline 最小信息，详情按需查看）。 */
+  private summarizePlan(plan: unknown): string | undefined {
+    if (!plan) return undefined;
+    try {
+      const p = plan as { todo?: string[]; actions?: Array<{ description?: string }> };
+      const lines: string[] = [];
+      if (Array.isArray(p.todo) && p.todo.length > 0) {
+        lines.push('TODO:');
+        for (const t of p.todo.slice(0, 10)) lines.push(`  - ${t}`);
+      }
+      if (Array.isArray(p.actions) && p.actions.length > 0) {
+        lines.push('Actions:');
+        for (const a of p.actions.slice(0, 10)) lines.push(`  - ${a.description ?? JSON.stringify(a)}`);
+      }
+      return lines.length > 0 ? lines.join('\n') : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /**

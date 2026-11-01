@@ -137,4 +137,10 @@ export interface SubAgentExecutionOptions {
 
   /** 保存中间结果 */
   saveIntermediates?: boolean;
+
+  /**
+   * 非阻塞确认回调（可选）。注入后（如 ConfirmationQueue 的 queueBasedConfirmation），
+   * 等待用户确认期间不阻塞会话主循环；未注入时使用默认的 inquirer 阻塞式交互。
+   */
+  confirmationResolver?: (title: string, detail?: string) => Promise<boolean>;
 }
