@@ -3,14 +3,14 @@
  * 覆盖：AsyncTaskRunner、ConfirmationQueue、TriggerRouter、SuperRouter、Watchdog
  */
 
-import { AsyncTaskRunner } from './src/loop/super/async-task-runner';
-import { ConfirmationQueue } from './src/loop/super/confirmation-queue';
-import { TriggerRouter, installDefaultNoiseRules } from './src/loop/super/trigger-router';
-import { SuperRouter, WorkerExecutor } from './src/loop/super/router-worker';
-import { Watchdog, WatchdogTaskSnapshot } from './src/loop/super/watchdog';
-import { ContextInjector, buildLocalizedContext } from './src/loop/super/context-injector';
-import { SuperStateStore } from './src/loop/super/state-store';
-import { SpeculativeRunner } from './src/loop/super/speculative-runner';
+import { AsyncTaskRunner } from '../src/loop/super/async-task-runner';
+import { ConfirmationQueue } from '../src/loop/super/confirmation-queue';
+import { TriggerRouter, installDefaultNoiseRules } from '../src/loop/super/trigger-router';
+import { SuperRouter, WorkerExecutor } from '../src/loop/super/router-worker';
+import { Watchdog, WatchdogTaskSnapshot } from '../src/loop/super/watchdog';
+import { ContextInjector, buildLocalizedContext } from '../src/loop/super/context-injector';
+import { SuperStateStore } from '../src/loop/super/state-store';
+import { SpeculativeRunner } from '../src/loop/super/speculative-runner';
 import {
   effectivePermissionLevel,
   isReadOnly,
@@ -18,27 +18,27 @@ import {
   containsBoundaryEscape,
   isSecretPath,
   installSecurityRules,
-} from './src/loop/super/security';
+} from '../src/loop/super/security';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
-import { TriggerEvent, WorkerTaskResult } from './src/loop/super/types';
+import { TriggerEvent, WorkerTaskResult } from '../src/loop/super/types';
 import {
   HarnessFileStore,
   createHarnessStore,
   diffSnapshots,
   HARNESS_COMPONENT_KINDS,
-} from './src/loop/super/harness-files';
+} from '../src/loop/super/harness-files';
 import {
   ExperienceStore,
   experienceFromWatchdog,
   experienceFromSpeculative,
-} from './src/loop/super/experience-store';
-import { OverfitGuard } from './src/loop/super/overfit-guard';
-import { HarnessProbe } from './src/loop/super/harness-probe';
-import { EventSourceBridge, toTriggerEvent } from './src/loop/super/event-source-bridge';
-import { mergeWorkerContextExtras } from './src/loop/super/worker-adapter';
-import { parseProposals } from './src/loop/super/auto-propose';
+} from '../src/loop/super/experience-store';
+import { OverfitGuard } from '../src/loop/super/overfit-guard';
+import { HarnessProbe } from '../src/loop/super/harness-probe';
+import { EventSourceBridge, toTriggerEvent } from '../src/loop/super/event-source-bridge';
+import { mergeWorkerContextExtras } from '../src/loop/super/worker-adapter';
+import { parseProposals } from '../src/loop/super/auto-propose';
 
 function makeTrigger(overrides: Partial<TriggerEvent> = {}): TriggerEvent {
   return {
@@ -700,7 +700,7 @@ describe('ExperienceStore', () => {
 // ============================================================================
 
 describe('OverfitGuard', () => {
-  const mkProposal = (overrides: Partial<import('./src/loop/super/overfit-guard').HarnessEditProposal> = {}) => ({
+  const mkProposal = (overrides: Partial<import('../src/loop/super/overfit-guard').HarnessEditProposal> = {}) => ({
     name: 'v1',
     edits: [{ kind: 'system-prompt' as const, oldContent: 'a'.repeat(300), newContent: 'b'.repeat(300) }],
     declaredEffect: 'planning 深度',
