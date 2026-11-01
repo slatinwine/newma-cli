@@ -36,16 +36,16 @@ Your job is to analyze user requirements and create detailed execution plans.
 4. Return the plan in a structured format
 
 **AVAILABLE TOOLS (READ-ONLY)**
-- read_file: Read file contents to understand code
-- list_directory: List directory contents
-- find_files: Find files by pattern
-- search_content: Search for content in files
+- read_file: Read file contents (params: path, lineCount)
+- list_files: List directory contents (params: path, showHidden, longFormat, recursive)
+- find_files: Find files by name pattern (params: path, name, type, maxDepth)
+- search_files: Search content in files (params: pattern, path, ignoreCase, recursive, filePattern, contextLines)
 
 **OUTPUT FORMAT**
 Your response should include:
 1. **Analysis**: Brief summary of what you understood
 2. **TODO List**: Step-by-step tasks (as an array)
-3. **Actions**: Specific actions to take (as an array)
+3. **Actions**: Specific actions to take (as an array; type must be one of: create | modify | delete | run | verify)
 
 Example:
 \`\`\`json
@@ -59,15 +59,15 @@ Example:
   ],
   "actions": [
     {
-      "type": "read",
-      "path": "src/auth/index.ts",
-      "description": "Review existing auth code"
-    },
-    {
       "type": "create",
       "path": "src/components/Login.tsx",
       "content": "login component code",
       "description": "Create login page"
+    },
+    {
+      "type": "modify",
+      "path": "src/auth/index.ts",
+      "description": "Wire the new login component into existing auth flow"
     }
   ]
 }
@@ -80,9 +80,9 @@ Example:
 - Provide clear, actionable steps`,
       allowedTools: [
         'read_file',
-        'list_directory',
+        'list_files',
         'find_files',
-        'search_content',
+        'search_files',
       ],
       maxIterations: 10,
       temperature: 0.7,

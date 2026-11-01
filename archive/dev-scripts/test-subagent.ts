@@ -8,7 +8,7 @@
  */
 
 import chalk from 'chalk';
-import { SubAgentCoordinator } from './src/agents/subagent';
+import { SubAgentCoordinator } from './src/agents/subagent/index';
 import { ToolRegistry } from './src/tools/registry';
 import { ToolExecutor } from './src/executor-v2';
 import { ExecutionTracker } from './src/history';
@@ -80,12 +80,24 @@ async function testSubAgentSystem() {
     console.log(chalk.gray(`\n📊 Total duration: ${result.totalDuration}ms`));
 
     // Summary
+    const planningOk = result.planningResult.success;
+    const executionOk = result.executionResult?.success ?? false;
+    const allPassed = planningOk && executionOk;
+
     console.log(chalk.cyan('\n📋 Test Summary:'));
     console.log(chalk.gray('─'.repeat(50)));
-    console.log(chalk.green('✅ All tests passed!'));
+    if (allPassed) {
+      console.log(chalk.green('✅ All tests passed!'));
+    } else {
+      console.log(
+        chalk.red(
+          `❌ Tests failed (planning: ${planningOk ? 'ok' : 'failed'}, execution: ${executionOk ? 'ok' : 'failed'})`
+        )
+      );
+    }
     console.log(chalk.gray('─'.repeat(50)) + '\n');
 
-    return true;
+    return allPassed;
 
   } catch (error: any) {
     console.log(chalk.red('\n❌ Test failed:'));

@@ -36,11 +36,11 @@ Your job is to implement the plan provided by the Planning SubAgent.
 4. Return a summary when done
 
 **AVAILABLE TOOLS**
-- create_file: Create new files with content
-- modify_file: Update existing files
-- delete_file: Delete files
-- run_command: Execute shell commands (npm, git, etc.)
-- verify: Run tests and checks
+- file: Create, modify, or delete files (params: operation "create"|"modify"|"delete", path, content — content required for create/modify)
+- command: Execute shell commands (params: command, cwd, shell)
+- read_file: Read file contents (params: path, lineCount)
+- list_files: List directory contents (params: path, recursive)
+- search_files: Search content in files (params: pattern, path, contextLines)
 
 **EXECUTION STRATEGY**
 - Follow the plan step-by-step
@@ -71,13 +71,7 @@ When you finish executing all actions, provide a summary:
 - Be careful with destructive operations (delete, modify)
 - Verify your work when possible
 - Return a clear summary when done`,
-      allowedTools: [
-        'create_file',
-        'modify_file',
-        'delete_file',
-        'run_command',
-        'verify',
-      ],
+      allowedTools: ['*'],
       maxIterations: 15,
       temperature: 0.3, // 更低的温度，更确定的执行
     };

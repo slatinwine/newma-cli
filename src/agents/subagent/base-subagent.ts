@@ -136,7 +136,7 @@ export abstract class BaseSubAgent {
           content: null,
         });
 
-        // 执行工具
+        // 执行工具（白名单强制 + 参数解析保护）
         const toolResults = await Promise.all(
           aiResp.toolCalls.map(async (call) => {
             const toolName = chalk.cyan(call.function.name);
@@ -146,11 +146,26 @@ export abstract class BaseSubAgent {
               console.log(`  ⚙️  [${toolName}] ${args}`);
             }
 
-            const result = await this.context.toolExecutor.executeToolCall({
-              tool: call.function.name,
-              parameters: JSON.parse(args),
-              id: call.id,
-            });
+            // 白名单是硬性边界：不允许的工具直接拒绝，不经过执行器
+            let result: { success: boolean; output?: string; error?: string } | undefined;
+            if (!this.isToolAllowed(call.function.name)) {
+              result = {
+                success: false,
+                error: `Tool not allowed for ${this.config.id}: ${call.function.name}. Allowed: ${this.config.allowedTools.join(', ')}`,
+              };
+            } else {
+              const parsed = this.safeParseArgs(args);
+              if ('error' in parsed) {
+                // 模型偶发返回畸形 JSON，in-band 报错让模型下一轮自行修正
+                result = { success: false, error: parsed.error };
+              } else {
+                result = await this.context.toolExecutor.executeToolCall({
+                  tool: call.function.name,
+                  parameters: parsed.parameters,
+                  id: call.id,
+                });
+              }
+            }
 
             if (result.success) {
               if (this.context.config.executionMode === 'subagent') {
@@ -203,13 +218,15 @@ export abstract class BaseSubAgent {
       }
     }
 
+    // 迭代耗尽：任务未完成，如实报告失败而不是假装成功
     return {
-      success: true,
+      success: false,
       agentId: this.config.id,
-      output: 'Task completed',
+      output: `Task did not complete within ${maxIterations} iterations`,
       toolCallsExecuted,
       tokensUsed: totalTokens,
       duration: Date.now() - startTime,
+      error: 'MAX_ITERATIONS_REACHED',
     };
   }
 
@@ -254,10 +271,23 @@ Description: ${this.config.description}`;
     }
   }
 
+  /** 安全解析模型返回的工具参数，畸形 JSON 返回 in-band 错误而非抛出 */
+  private safeParseArgs(args: string): { parameters: Record<string, unknown> } | { error: string } {
+    try {
+      return { parameters: JSON.parse(args) };
+    } catch {
+      return { error: 'Invalid JSON in tool arguments. Resend the call with valid JSON.' };
+    }
+  }
+
   /**
    * 验证工具调用是否在白名单中
+   * '*' 表示允许全部已注册工具（ExecutionSubAgent 使用）
    */
   protected isToolAllowed(toolName: string): boolean {
-    return this.config.allowedTools.includes(toolName);
+    return (
+      this.config.allowedTools.includes('*') ||
+      this.config.allowedTools.includes(toolName)
+    );
   }
 }
