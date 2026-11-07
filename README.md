@@ -103,3 +103,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and
   runtime) are experimental and off by default.
 - AI-powered features require a working API key; all `/save` `/tree`
   `/flags` `/next` `/back-to` commands work fully offline.
+
+## 关注公众号
+
+![公众号二维码](qrcode.jpg)
